@@ -25,7 +25,7 @@ def tests_url_generator(values_for_url):
             value_index = random.randint(0, len([*values_for_url.keys()][0]) - 1)
             value = values_for_url[key][value_index]
             print("day:", dd, ", mm: ", mm, ", yyyy: ", yyyy, ", key: ", key, ", value: ", value)
-            url = url_generator(dd, mm, yyyy, value)
+            url = url_generator((dd, mm, yyyy), value)
             print(url)
             response_ = requests.get(url)
             if response_.text == "Not Found [CFN #0005]":

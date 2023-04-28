@@ -10,58 +10,69 @@ err_exit(){
 
 # Get the option
 r_key=false
-update_symbols_key=false
+update_key=false
 str_param=""
-pt="bsht.py"
+pt="app.py"
+
 printf "%s " "Params: "
 while [ "$#" -gt 0 ]
 do
    case "$1" in
+
    -f|--freeze)
       r_key=true
       printf "%s " " freeze;"
       ;;
-   -u|--update-symbols)
-      update_symbols_key=true
-      printf "%s " " --update-symbols;"
+
+   -u|--update)
+      update_key=true
+      printf "%s " " --update;"
       ;;
+
    --pt)
       shift
       pt="$1"
       printf "%s " " python file to start='$pt';"
       ;;
-   --second-symbol)
+
+   --start-date)
       shift
-      second_symbol="$1"
-      str_param+="--second-symbol $second_symbol "
-      printf "%s " " second-symbol='$second_symbol';"
+      start_date="$1"
+      str_param+="--start-date $start_date "
+      printf "%s " " start-date='$start_date';"
       ;;
-   --id)
+
+   --end-date)
       shift
-      id="$1"
-      str_param+="--id $id "
-      printf "%s " " id=$id;"
+      end_date="$1"
+      str_param+="--end-date $end_date "
+      printf "%s " " end-date='$end_date';"
       ;;
+
      --tests)
       shift
       tests="$1"
       str_param+="--tests $tests "
       printf "%s " " tests #'$tests';"
       ;;
+
      --force-url)
       force_url="--force-url"
       str_param+="$force_url "
       printf "%s " " $force_url';"
       ;;
+
      -h|--help)
       help="--help"
       str_param+="$help "
       printf "%s " " $help';"
       ;;
+
    -*)
       echo "Invalid option '$1'. Use -h or --help to see the valid options" >&2
       return 1
       ;;
+
    *)
       echo "Invalid option '$1'. Use -h or --help to see the valid options" >&2
       return 1
