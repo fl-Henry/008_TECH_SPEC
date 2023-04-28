@@ -1,3 +1,4 @@
+import os
 import sys
 import random
 import argparse
@@ -7,51 +8,20 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from time import sleep
 
+# Custom imports
 import tests
 
+from general_methods import DaNHandler, arg_parser
+
 
 # # ===== General Variables =================================================================== General Variables =====
 ...
 # # ===== General Variables =================================================================== General Variables =====
 
 
-args = {}
-
-
-# # ===== General Methods ======================================================================= General Methods =====
-...
-# # ===== General Methods ======================================================================= General Methods =====
-
-
-def arg_parser():
-    # Parsing of arguments
-    try:
-        parser = argparse.ArgumentParser(description='TECH_SPEC')
-        parser.add_argument('--tests', dest='tests_str', default=None,
-                            help='Names of testes // separator "-"; Ex: "01-02-03"')
-        # parser.add_argument('--second-symbol', dest='second_symbol', default='USDT',
-        #                     help='Symbol of token as money Ex: "USDT"')
-        # parser.add_argument('--id', dest='id', default=5,
-        #                     help='Id of callback Ex: 5')
-        # parser.add_argument('--test', dest='test_key', nargs='?', const=True, default=False,
-        #                     help='Enable test mode')
-        # parser.add_argument('--force-url', dest='force_url', nargs='?', const=True, default=False,
-        #                     help="Enable force url for Spot and Websocket (in the test mode has no effect")
-        parsed_args = parser.parse_args()
-
-        # Arguments
-        global args
-        args.update({"tests_list": str(parsed_args.tests_str).split("-")})
-
-        # Output of arguments
-        stdout = f"\ntests: {args['tests_list']}"
-        args.update({"stdout": stdout})
-
-        return args
-
-    except Exception as _ex:
-        print("[ERROR] Parsing arguments >", _ex)
-        sys.exit(1)
+# Parsing the arguments
+args = arg_parser()
+dan = DaNHandler()
 
 
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
@@ -108,9 +78,8 @@ def scrape_values_for_urls():
 
 def start_app():
 
-    # Parsing the arguments
-    args_stdout = arg_parser()["stdout"]
-    print(args_stdout)
+    print(args["stdout"])
+    print(dan)
 
     # URLs and selectors used in the application
     urls = [

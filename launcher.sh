@@ -95,7 +95,7 @@ fi
 printf "\nStart app\n"
 printf "%s\n" "python $pt $str_param > "
 echo "$str_param" | xargs python "$pt"
-printf "%s\n\n" "< python $pt $str_param"
+printf "\n%s\n\n" "< python $pt $str_param"
 
 # Starting bot with
 # printf "\n%s\n" "Starting bot with args: $str_param "
