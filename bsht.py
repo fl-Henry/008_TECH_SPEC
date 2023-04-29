@@ -2,13 +2,13 @@ import os
 import sys
 import shutil
 import random
+import codecs
 import pymongo
 import argparse
 import pdfquery
 import requests
 import numpy as np
 import pandas as pd
-
 from datetime import datetime, timedelta, date
 from bs4 import BeautifulSoup
 from time import sleep
@@ -103,12 +103,17 @@ def check_nesting(bbox, parent_bbox):
     else:
         print("[ERROR] check_nesting > wrong parent_bbox type:", type(parent_bbox), "parent_bbox:", parent_bbox)
 
-    check_bbox = parent_bbox - bbox
+    check_bbox = bbox - parent_bbox
     filter_bbox = check_bbox < 0
-    if len(check_bbox[filter_bbox]) > 0:
-        return False
-    else:
+    filter_bbox_to_check = (False, False, True, True)
+    if ((filter_bbox[0] == filter_bbox_to_check[0]) and
+        (filter_bbox[1] == filter_bbox_to_check[1]) and
+        (filter_bbox[2] == filter_bbox_to_check[2]) and
+        (filter_bbox[3] == filter_bbox_to_check[3])
+    ):
         return True
+    else:
+        return False
 
 
 def get_tag_text(tag):
@@ -136,21 +141,21 @@ def find_inside_bbox(parsed_xml, bbox_to_find):
     :param bbox_to_find: tuple[float]           | (0, 0, 10, 10)
     :return:
     """
-
-    # Check all bboxes if they are in the bbox_to_find
+    content_list = []
     for char_index in range(len(parsed_xml["xml_text"]) - 3):
         if parsed_xml["xml_text"][char_index:char_index + 4] == "bbox":
             bbox = get_bbox(char_index, parsed_xml["xml_text"])
             if check_nesting(bbox, bbox_to_find):
                 tag = get_tag_by_attr_position(char_index, parsed_xml["xml_text"])
-                print(tag)
                 tag_text = get_tag_text(tag)
-                print(tag_text)
+                content_list.append(tag_text)
+    return content_list
 
 
 def parse_xml(xml_path):
-    with open(xml_path, "r") as xml_file:
+    with codecs.open(xml_path, encoding="utf-8", mode="r") as xml_file:
         xml_text = xml_file.read()
+        xml_text = replace_chars(xml_text)
 
     # Finding page bbox
     page_bbox = None
@@ -255,6 +260,23 @@ def parsing_pdf(file_path):
     # print(text)
 
 
+def tblr_to_bbox(tblr_bbox, margin=0.005):
+    bbox = np.array(
+        (
+            float(tblr_bbox["left"][0]),
+            float(tblr_bbox["bottom"][1]),
+            float(tblr_bbox["right"][2]),
+            float(tblr_bbox["top"][3])
+        )
+    )
+    margin_diff = bbox * margin
+    margin_diff[0] = margin_diff[0] * (-1)
+    margin_diff[1] = margin_diff[1] * (-1)
+    bbox = bbox + margin_diff
+
+    return bbox
+
+
 def main():
     path = "./temp/capital/2642023_aux1.pdf"
     xml_path = "./temp/capital/2642023_aux1.xml"
@@ -263,14 +285,24 @@ def main():
     bbox_to_find = (100, 100, 300, 300)
     parsed_xml = parse_xml(xml_path)
 
-    relative_bbox = (20, 50, 90, 90)
-    bbox_to_find = relative_bbox_to_bbox(relative_bbox, parsed_xml["page_bbox"])
-    print(bbox_to_find)
-    print(parsed_xml["page_bbox"])
+    # relative_bbox = (20, 50, 90, 90)
+    # bbox_to_find = relative_bbox_to_bbox(relative_bbox, parsed_xml["page_bbox"])
     # [236.04, 915.72, 503.381, 927.72]
-    # check_nesting(relative_bbox, bbox_to_find)
-    # find_inside_bbox(parsed_xml, bbox_to_find)
+    tblr_bbox = {
+        "top": (236.04, 915.72, 503.381, 927.72),
+        "bottom": (240.96, 849.72, 498.436, 861.72),
+        "left": (178.68, 887.4, 560.777, 899.4),
+        "right": (178.68, 887.4, 560.777, 899.4),
+    }
+    bbox_to_find = tblr_to_bbox(tblr_bbox, margin=0.01)
+    print(bbox_to_find)
+    content_list = find_inside_bbox(parsed_xml, bbox_to_find)
+    print(content_list)
+
+    # TODO: find all pages (different variables or list of pages)
+    #       > parse header of the first page
+    #       > parse tables of all pages
+
 
 if __name__ == '__main__':
     main()
-
