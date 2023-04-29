@@ -1,22 +1,23 @@
 import os
 import sys
 import random
+import pymongo
 import asyncio
 import aiohttp
 import aiofiles
 import argparse
 import requests
+import pandas as pd
 
 # from aiohttp_socks import ChainProxyConnector, ProxyConnector
 from aiohttp_retry import RetryClient, ExponentialRetry
 from datetime import datetime, timedelta
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
+from pdfquery import PDFQuery
 from time import sleep
 
 # Custom imports
-import tests
-
 from general_methods import DaNHandler, arg_parser, dates_between, delete_last_print_lines, url_to_name
 from print_tags import Tags
 
@@ -73,6 +74,20 @@ async def write_file(session, file_url, file_path, stdout_key=False):
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 
 
+def parsing_pdf():
+
+    pdf = PDFQuery('example.pdf')
+    pdf.load()
+
+    # Use CSS-like selectors to locate the elements
+    text_elements = pdf.pq('LTTextLineHorizontal')
+
+    # Extract the text from the elements
+    text = [t.text for t in text_elements]
+
+    print(text)
+
+
 def url_generator(date_: tuple[int, int, int], der):
     """
 
@@ -120,7 +135,6 @@ def scrape_values_for_urls():
 
 
 async def check_file_if_exists(session, date_item, der):
-
 
     retry_options = ExponentialRetry(attempts=5)
     retry_client = RetryClient(raise_for_status=False, retry_options=retry_options, client_session=session,
@@ -206,9 +220,6 @@ def start_app():
     # Getting values for url_generator
     values_for_url = scrape_values_for_urls()
 
-    # Test of url_generator
-    tests.tests_url_generator(values_for_url)
-
     # Creating urls of files
     files_urls = get_files_urls(
         star_date=args['start_date'],
@@ -219,6 +230,14 @@ def start_app():
     # Save file to temporary folder
     asyncio.run(save_reports(files_urls))
 
+    # Connect to DB
+    # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # Parsing pdf files
+    parsing_pdf()
+
+    # Delete temp folder
+    dan.remove_dirs()
     ...
     ...
     # Stdout working time

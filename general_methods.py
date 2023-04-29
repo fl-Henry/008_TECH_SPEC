@@ -131,13 +131,32 @@ def delete_last_print_lines(n=1):
 
 def replace_chars(in_str):
     # TODO: Transform 'áéíóöúüÁÉÍÓÖÚÜ' to 'aeioouuAEIOOUU'
-    pass
-    # out_str = ''
-    # for char in in_str:
-    #     if char in symb_dict:
-    #         char = symb_dict[char]
-    #     out_str += char
-    # return out_str
+    """"""
+
+    # Char set for replace
+    char_set = {
+        "á": "a",
+        "é": "e",
+        "í": "i",
+        "ó": "o",
+        "ö": "o",
+        "ú": "u",
+        "ü": "u",
+        "Á": "A",
+        "É": "E",
+        "Í": "I",
+        "Ó": "O",
+        "Ö": "O",
+        "Ú": "U",
+        "Ü": "U",
+    }
+
+    out_str = ''
+    for char in in_str:
+        if char in [*char_set.keys()]:
+            char = char_set[char]
+        out_str += char
+    return out_str
 
 
 def url_to_name(file_url, iter_count=1):
@@ -149,7 +168,7 @@ def url_to_name(file_url, iter_count=1):
 
         # Checking infinite loop
         error_counter += 1
-        if error_counter > 1000:
+        if error_counter > 8000:
             print("[ERROR] url_to_name > infinite loop")
             print(input_file_url)
             raise LookupError
@@ -167,6 +186,35 @@ def url_to_name(file_url, iter_count=1):
             else:
                 process_url = process_url[:-1]
     return file_name
+
+
+def url_parent(file_url, iter_count=1):
+    input_file_url = file_url
+    parent_url = file_url
+    process_url = file_url
+    error_counter = 0
+    while iter_count > 0:
+
+        # Checking infinite loop
+        error_counter += 1
+        if error_counter > 8000:
+            print("[ERROR] url_parent > infinite loop")
+            print(input_file_url)
+            raise LookupError
+
+        # Method logic
+        if process_url[-1] == '/':
+            process_url = process_url[:-1]
+        for _ in range(1, len(process_url)):
+            char = process_url[-1]
+            if char == '/':
+                parent_url = process_url
+                iter_count -= 1
+                break
+            else:
+                process_url = process_url[:-1]
+
+    return parent_url
 
 
 # # ===== Date Methods ============================================================================= Date Methods =====
