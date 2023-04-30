@@ -129,6 +129,19 @@ def delete_last_print_lines(n=1):
 # # ===== String Methods ========================================================================= String Methods =====
 
 
+def str_equals_str(str_1, str_2):
+    if len(str_1) != len(str_2):
+        print("len:", len(str_1), len(str_2))
+        return False
+
+    for char_1, char_2 in zip(str_1, str_2):
+        if char_1 != char_2:
+            print("char:", char_1, char_2)
+            return False
+
+    return True
+
+
 def replace_chars(in_str):
     """"""
 

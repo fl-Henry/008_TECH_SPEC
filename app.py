@@ -18,6 +18,8 @@ from pdfquery import PDFQuery
 from time import sleep
 
 # Custom imports
+import pdf_parser as pp
+
 from general_methods import DaNHandler, arg_parser, dates_between, delete_last_print_lines, url_to_name
 from print_tags import Tags
 
@@ -26,7 +28,7 @@ from print_tags import Tags
 ...
 # # ===== General Variables =================================================================== General Variables =====
 
-
+...
 # Parsing the arguments
 args = arg_parser()
 dan = DaNHandler()
@@ -72,20 +74,6 @@ async def write_file(session, file_url, file_path, stdout_key=False):
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 ...
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
-
-
-def parsing_pdf():
-
-    pdf = PDFQuery('example.pdf')
-    pdf.load()
-
-    # Use CSS-like selectors to locate the elements
-    text_elements = pdf.pq('LTTextLineHorizontal')
-
-    # Extract the text from the elements
-    text = [t.text for t in text_elements]
-
-    print(text)
 
 
 def url_generator(date_: tuple[int, int, int], der):
@@ -194,6 +182,92 @@ async def save_reports(files_urls):
         #     await asyncio.gather(*tasks)
 
 
+def parsing_pdf(paf_path):
+    """
+            {
+                "actor": ,                        # "actor"
+                "demandado": ,                    # "defendant"
+                "entidad": ,                      # "entity"
+                "expediente": ,                   # "file"
+                "fecha": ,                        # "date"
+                "fuero": ,                        # "jurisdiction"
+                "juzgado": ,                      # "court"
+                "tipo": ,                         # "type"
+                "acuerdos": ,                     # "agreements"
+                "monto": ,                        # "amount"
+                "fecha_presentacion": ,           # "date filed"
+                "actos_reclamados": ,             # "claimed acts"
+                "actos_reclamados_especificos": , # "specific claimed acts"
+                "Naturaleza_procedimiento": ,     # "Nature of the proceeding"
+                "Prestación_demandada": ,         # "Benefit demanded"
+                "Organo_jurisdiccional_origen": , # "Jurisdiction of origin"
+                "expediente_origen": ,            # "original case file"
+                "materia": ,                      # "subject matter"
+                "submateria": ,                   # "sub-subject matter"
+                "fecha_sentencia": ,              # "date of judgment"
+                "sentido_sentencia": ,            # "sense judgment"
+                "resoluciones": ,                 # "resolutions"
+                "origen": ,                       # "origin"
+                "fecha_insercion": ,              # "date of insertion"
+                "fecha_tecnica": ,                # "technical date"
+            }
+            """
+
+    record = {
+        "actor": str,
+        "demandado": str,
+        "entidad": str,
+        "expediente": str,
+        "fecha": str,
+        "fuero": str,
+        "juzgado": str,
+        "tipo": str,
+        "acuerdos": str,
+        "monto": str,
+        "fecha_presentacion": str,
+        "actos_reclamados": str,
+        "actos_reclamados_especificos": str,
+        "Naturaleza_procedimiento": str,
+        "Prestación_demandada": str,
+        "Organo_jurisdiccional_origen": str,
+        "expediente_origen": str,
+        "materia": str,
+        "submateria": str,
+        "fecha_sentencia": str,
+        "sentido_sentencia": str,
+        "resoluciones": str,
+        "origen": str,
+        "fecha_insercion": str,
+        "fecha_tecnica": str,
+    }
+
+    # Convert PDF to XML
+
+    xml_path = pp.convert_pdf_to_xml(paf_path)
+    # xml_path = "./temp/capital/2642023_aux1.xml"
+
+    # Parsing whole xml document
+    parsed_xml = pp.parse_xml(xml_path)
+
+    parsed_xml.update({"xml_text": pp.replace_chars(parsed_xml["xml_text"])})
+
+    # Getting the whole page
+    page_tag = pp.get_all_tags_by_name("LTPage", parsed_xml["xml_text"])
+
+    # Bboxes that edge/border the content
+    tblr_bbox = {
+        "top": (236.04, 915.72, 503.381, 927.72),
+        "bottom": (240.96, 849.72, 498.436, 861.72),
+        "left": (178.68, 887.4, 560.777, 899.4),
+        "right": (178.68, 887.4, 560.777, 899.4),
+    }
+    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.01)
+
+    # Get text
+    content_list = pp.text_inside_bbox(page_tag[0], bbox_to_find)
+    print(content_list)
+
+
 def start_app():
     start_time = datetime.now()
 
@@ -201,43 +275,45 @@ def start_app():
     print(dan)
 
     # URLs and selectors used in the application
-    urls = [
-        "http://tsjdgo.gob.mx/Recursos/ListasDeAcuerdos.html#",
-    ]
-    css_selectors = {
-        1: "#contenedor1",                   # button with text De la capital
-        2: "#contenedor2",                   # button with text Gómez Palacio y Lerdo
-        3: "#contenedor3",                   # button with text Juzgados foraneos
-        4: "#panel-oculto",                  # block after clicking button with text De la capital
-        5: "#panel-oculto2",                 # block after clicking button with text Gómez Palacio y Lerdo
-        6: "#panel-oculto1",                 # block after clicking button with text Juzgados foraneos
-        7: "input.der",                      # radio_buttons
-        8: "#panel-oculto input.der",        # radio_buttons for De la capital
-        9: "#panel-oculto2 input.der",       # radio_buttons for Gómez Palacio y Lerdo
-        10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
-    }
+    # urls = [
+    #     "http://tsjdgo.gob.mx/Recursos/ListasDeAcuerdos.html#",
+    # ]
+    # css_selectors = {
+    #     1: "#contenedor1",                   # button with text De la capital
+    #     2: "#contenedor2",                   # button with text Gómez Palacio y Lerdo
+    #     3: "#contenedor3",                   # button with text Juzgados foraneos
+    #     4: "#panel-oculto",                  # block after clicking button with text De la capital
+    #     5: "#panel-oculto2",                 # block after clicking button with text Gómez Palacio y Lerdo
+    #     6: "#panel-oculto1",                 # block after clicking button with text Juzgados foraneos
+    #     7: "input.der",                      # radio_buttons
+    #     8: "#panel-oculto input.der",        # radio_buttons for De la capital
+    #     9: "#panel-oculto2 input.der",       # radio_buttons for Gómez Palacio y Lerdo
+    #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
+    # }
 
     # Getting values for url_generator
-    values_for_url = scrape_values_for_urls()
-
-    # Creating urls of files
-    files_urls = get_files_urls(
-        star_date=args['start_date'],
-        end_date=args['end_date'],
-        values_for_url=values_for_url
-    )
+    # values_for_url = scrape_values_for_urls()
+    #
+    # # Creating urls of files
+    # files_urls = get_files_urls(
+    #     star_date=args['start_date'],
+    #     end_date=args['end_date'],
+    #     values_for_url=values_for_url
+    # )
 
     # Save file to temporary folder
-    asyncio.run(save_reports(files_urls))
+    # asyncio.run(save_reports(files_urls))
 
     # Connect to DB
     # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
 
     # Parsing pdf files
-    parsing_pdf()
+    pdf_path = "./temp/capital/2642023_aux1.pdf"
+    dicts = parsing_pdf(pdf_path)
+    print(dicts)
 
     # Delete temp folder
-    dan.remove_dirs()
+    # dan.remove_dirs()
     ...
     ...
     # Stdout working time
