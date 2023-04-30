@@ -129,6 +129,20 @@ def delete_last_print_lines(n=1):
 # # ===== String Methods ========================================================================= String Methods =====
 
 
+def find_number_index(in_string):
+    in_list = [str(x) for x in range(10)]
+    for index in range(len(in_string)):
+        if in_string[index] in in_list:
+            return index
+
+
+def find_char_index(in_string, char):
+    for index in range(len(in_string)):
+        if in_string[index] == char:
+            return index
+    return None
+
+
 def str_equals_str(str_1, str_2):
     if len(str_1) != len(str_2):
         print("len:", len(str_1), len(str_2))

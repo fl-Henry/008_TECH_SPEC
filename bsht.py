@@ -13,12 +13,19 @@ from datetime import datetime, timedelta, date
 from bs4 import BeautifulSoup
 from time import sleep
 
+import pdf_parser as pp
 
 from general_methods import replace_chars, url_to_name, url_parent
 
 
 def main():
-    pass
+    print(len("LISTA DE ACUERDOS"))
+    tag = '<LTTextLineHorizontal y0="818.708" y1="828.668" x0="30.0" x1="46.091" width="16.091" height="9.96" bbox="[30.0, 818.708, 46.091, 828.668]" word_margin="0.1"><LTTextBoxHorizontal y0="818.708" y1="828.668" x0="30.0" x1="46.091" width="16.091" height="9.96" bbox="[30.0, 818.708, 46.091, 828.668]" index="2">No. </LTTextBoxHorizontal></LTTextLineHorizontal>'
+    tag = pp.get_tag_by_attr_position(20, tag)
+    print(tag[-1])
+    tag = '<LTTextBoxHorizontal y0="818.708" y1="828.668" x0="30.0" x1="46.091" width="16.091" height="9.96" bbox="[30.0, 818.708, 46.091, 828.668]" index="2">No. </LTTextBoxHorizontal>'
+    tag = pp.get_tag_by_attr_position(20, tag)
+    print(tag[-1])
 
 
 def anchor_for_navigate():

@@ -1,4 +1,6 @@
 # TODO: rewrite as a OOP
+import sys
+
 import pdfquery
 import numpy as np
 
@@ -97,13 +99,29 @@ def get_tag_by_attr_position(char_index, dom):
 
     # Finding close bracket for tag
     close_index = 0
+    is_parent = False
     for close_bracket_index in range(len(dom[char_index:])):
         current_position = char_index + close_bracket_index
         if dom[current_position:current_position + len(tag_name) + 3] == f"</{tag_name}>":
             close_index = current_position + len(tag_name) + 3
             break
+        if dom[current_position] == "<":
+            is_parent = True
 
-    return dom[open_index:close_index]
+    if is_parent:
+        tag = f"{dom[open_index:close_index]}1"
+    else:
+        tag = f"{dom[open_index:close_index]}0"
+
+    return tag
+
+
+def find_position(string_to_find, dom):
+    for tag_name_open_index in range(len(dom) - len(string_to_find)):
+        dom_process_str = dom[tag_name_open_index:tag_name_open_index + len(string_to_find)]
+        if dom_process_str == string_to_find:
+            return tag_name_open_index
+    return None
 
 
 def get_tag_by_name(tag_name, dom):
@@ -113,13 +131,8 @@ def get_tag_by_name(tag_name, dom):
     :param dom: str             | The DOM as a string
     :return: str                | First tag that has the same name
     """
-    # Finding the tag position
-    tag_name_first_char_index = 0
-    for tag_name_open_index in range(len(dom) // 2 - len(tag_name)):
-        dom_process_str = dom[tag_name_open_index:tag_name_open_index + len(tag_name)]
-        if dom_process_str == tag_name:
-            tag_name_first_char_index = tag_name_open_index
-            break
+    # Getting the tag name position
+    tag_name_first_char_index = find_position(tag_name, dom)
 
     # Getting the whole tag
     tag = get_tag_by_attr_position(tag_name_first_char_index, dom)
@@ -238,6 +251,133 @@ def get_tag_text(tag):
     return text
 
 
+def get_table(xml_text, bbox_to_find):
+
+    # Finding first row
+    bottom_bbox = [x for x in bbox_to_find]
+    bottom_bbox[1] = float(bbox_to_find[3])
+    right_bbox = [x for x in bbox_to_find]
+    right_bbox[2] = bbox_to_find[0]
+    tblr_bbox = {
+        "top": bbox_to_find,
+        "bottom": bottom_bbox,
+        "left": bbox_to_find,
+        "right": right_bbox,
+    }
+    first_row = []
+
+    # # Searching tags inside the increasing bbox > bottom border -= 2.5% of top border coordinates; right border += 10%
+    while bottom_bbox[1] > 0:
+        bottom_bbox[1] -= bbox_to_find[3] * 0.025
+        tblr_bbox.update({"bottom": bottom_bbox})
+        while right_bbox[2] < bbox_to_find[2]:
+            right_bbox[2] += bbox_to_find[2] * 0.1
+            tblr_bbox.update({"right": right_bbox})
+            bbox_to_find_first_row = tblr_to_bbox(tblr_bbox)
+            item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_row)
+            if len(item_tags) > 0:
+                for item in item_tags:
+                    first_row.append(item)
+                left_bbox = get_bbox(0, first_row[-1])
+                left_bbox = [left_bbox[2], 0, 0, 0]
+                tblr_bbox.update({"left": left_bbox})
+        if len(first_row) > 0:
+            break
+        right_bbox[2] = bbox_to_find[0]
+
+    if len(first_row) == 0:
+        return []
+
+    # Calculating width of columns
+    list_of_col_params = []
+    for column_tag in first_row:
+        col_header_bbox = get_bbox(0, column_tag)
+        col_header_width = col_header_bbox[2] - col_header_bbox[0]
+        col_middle_coord = col_header_bbox[0] + (col_header_width / 2)
+        col_params = {
+                "left": col_header_bbox[0],
+                "right": col_header_bbox[2],
+                "middle": col_middle_coord,
+                "width": col_header_width,
+                "header_bbox": col_header_bbox,
+            }
+        list_of_col_params.append(col_params)
+
+    # Finding the smaller left coordinate and the larger right coordinate
+    for col_params, col_index in zip(list_of_col_params, range(len(list_of_col_params))):
+        char_index = 0
+
+        # Find bbox and associated tag
+        while char_index <= len(xml_text) - 3:
+            if xml_text[char_index:char_index + 4] == "bbox":
+                tag = get_tag_by_attr_position(char_index, xml_text)
+
+                # if tag is parent tag then skip
+                if tag[-1] == "1":
+                    char_index += 1
+                    continue
+                bbox = get_bbox(char_index, xml_text)
+
+                # If middle coordinate inside bbox width
+                if (bbox[0] < col_params["middle"]) and (bbox[2] > col_params["middle"]):
+
+                    # If not first column
+                    if col_index > 0:
+
+                        # If left border coordinate of the bbox is less than current > replace
+                        if (
+                                (col_params["left"] > bbox[0]) and
+                                check_nesting(bbox, bbox_to_find) and
+                                (list_of_col_params[col_index - 1]["middle"] < bbox[0])
+                        ):
+                            col_params.update({"left": bbox[0]})
+
+                    # If first column
+                    else:
+
+                        # If left border coordinate of the bbox is less than current > replace
+                        if (col_params["left"] > bbox[0]) and check_nesting(bbox, bbox_to_find):
+                            col_params.update({"left": bbox[0]})
+
+                    # If not last column
+                    if col_index < len(list_of_col_params) - 1:
+
+                        # If right border coordinate of the bbox is greater than current > replace
+                        if (
+                                (col_params["right"] < bbox[2]) and
+                                check_nesting(bbox, bbox_to_find) and
+                                (list_of_col_params[col_index + 1]["middle"] > bbox[2])
+                        ):
+                            col_params.update({"right": bbox[2]})
+
+                    # If last column
+                    else:
+
+                        # If left border coordinate of the bbox is less than current > replace
+                        if (col_params["right"] < bbox[2]) and check_nesting(bbox, bbox_to_find):
+                            col_params.update({"right": bbox[2]})
+
+            char_index += 1
+
+        col_width = col_params["right"] - col_params["left"]
+        col_params.update({"width": col_width})
+        list_of_col_params[col_index].update(col_params)
+
+    sys.exit()
+    # TODO: parse lost text ???
+    ...
+    # TODO: get rows heights
+    ...
+    # TODO: get columns
+    ...
+    # bbox = tblr_to_bbox(tblr_bbox)
+    # tags = get_all_tags_by_name()
+
+    table_tags = text_inside_bbox(xml_text, bbox_to_find)
+    # print(table_tags)
+    return None
+
+
 def text_inside_bbox(xml_text, bbox_to_find):
     """
 
@@ -257,6 +397,26 @@ def text_inside_bbox(xml_text, bbox_to_find):
                 content_list.append(tag_text)
         char_index += 1
     return content_list
+
+
+def tags_inside_bbox(xml_text, bbox_to_find):
+    """
+
+    :param xml_text: str                        | XML as a string or tag as a string
+    :param bbox_to_find: tuple[float]           | (0, 0, 10, 10)
+    :return: list[str]                          | The list of text inside the bbox_to_find
+    """
+    tags_list = []
+    char_index = 0
+    while char_index <= len(xml_text) - 3:
+        if xml_text[char_index:char_index + 4] == "bbox":
+            bbox = get_bbox(char_index, xml_text)
+            if check_nesting(bbox, bbox_to_find):
+                tag = get_tag_by_attr_position(char_index, xml_text)
+                char_index += len(tag) - 1
+                tags_list.append(tag)
+        char_index += 1
+    return tags_list
 
 
 def parse_xml(xml_path):
@@ -315,6 +475,18 @@ def convert_pdf_to_xml(file_path):
 
 
 def tblr_to_bbox(tblr_bbox, margin=0.005):
+    """
+    tblr_bbox = {
+        "top": bbox,        \n
+        "bottom": bbox,     \n
+        "left": bbox,       \n
+        "right": bbox,      \n
+    }
+
+    :param tblr_bbox: dict
+    :param margin: float        | 0.01 -> 1%
+    :return: list[float]
+    """
     bbox = np.array(
         (
             float(tblr_bbox["left"][0]),
