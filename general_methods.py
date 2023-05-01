@@ -143,6 +143,13 @@ def find_char_index(in_string, char):
     return None
 
 
+def find_string_indexes(in_string, string_to_find):
+    for index in range(len(in_string) - len(string_to_find)):
+        if in_string[index:index + len(string_to_find)] == string_to_find:
+            return index, index + len(string_to_find)
+    return None
+
+
 def str_equals_str(str_1, str_2):
     if len(str_1) != len(str_2):
         print("len:", len(str_1), len(str_2))

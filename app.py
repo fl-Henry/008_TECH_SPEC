@@ -19,6 +19,7 @@ from time import sleep
 
 # Custom imports
 import pdf_parser as pp
+import general_methods as gm
 
 from general_methods import DaNHandler, arg_parser, dates_between, url_to_name, replace_chars, find_char_index, \
     find_number_index
@@ -275,7 +276,9 @@ def aux(page_tag):
     header_text_list = pp.text_inside_bbox(page_tag, bbox_to_find)
 
     # JUZGADO
-    record["juzgado"] = header_text_list[0][67:-18]
+    start_pos = gm.find_string_indexes(header_text_list[0], "SUPERIOR DE JUSTICIA")[1]
+    end_pos = gm.find_string_indexes(header_text_list[0], "LISTA DE ACUERDOS")[0]
+    record["juzgado"] = header_text_list[0][start_pos:end_pos]
 
     # FECHA TODO: format date yyyy/mm/dd
     record["fecha"] = header_text_list[1][find_number_index(header_text_list[1]):]
@@ -296,6 +299,7 @@ def aux(page_tag):
         durango_tag = pp.get_tag_by_attr_position(durango_position, page_tag)
         durango_bbox = pp.get_bbox(0, durango_tag)
         bottom_bbox = durango_bbox
+    bottom_bbox[1] = bottom_bbox[3]
 
     # Getting page_bbox
     page_bbox = pp.get_bbox(0, page_tag)
@@ -304,7 +308,6 @@ def aux(page_tag):
     no_position = pp.find_position("No.", page_tag)
     no_tag = pp.get_tag_by_attr_position(no_position, page_tag)
     no_bbox = pp.get_bbox(0, no_tag)
-
 
     # Bboxes that edge/border the table
     tblr_bbox = {
@@ -316,8 +319,8 @@ def aux(page_tag):
     bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.01)
 
     # Get table
-    table = pp.get_table(page_tag, bbox_to_find)
-    print(table)
+    table_df = pp.get_table(page_tag, bbox_to_find)
+    print(table_df)
     sys.exit()
 
     return record

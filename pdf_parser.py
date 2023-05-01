@@ -3,11 +3,20 @@ import sys
 
 import pdfquery
 import numpy as np
+import pandas as pd
 
 
 # # ===== General Methods ======================================================================= General Methods =====
 ...
 # # ===== General Methods ======================================================================= General Methods =====
+
+
+def if_iterable(obj):
+    try:
+        obj_to_try = iter(obj)
+    except TypeError as te:
+        return False
+    return True
 
 
 def url_to_name(file_url, iter_count=1):
@@ -251,9 +260,29 @@ def get_tag_text(tag):
     return text
 
 
+def unpack_tags(item):
+    char_index = 0
+    while char_index <= len(item) - 3:
+        if item[char_index:char_index + 4] == "bbox":
+            tag = get_tag_by_attr_position(char_index, item)
+
+            # if tag is parent tag then skip
+            if tag[-1] == "1":
+                char_index += 1
+                continue
+            else:
+                return tag
+        char_index += 1
+    return item
+
+
 def get_table(xml_text, bbox_to_find):
 
-    # Finding first row
+    # TODO: Redefining xml_text for tags inside the bbox_to_find
+    ...
+    # Calculating widths of columns ===================================================================================
+    ...
+    # # Calculating start tblr_bbox
     bottom_bbox = [x for x in bbox_to_find]
     bottom_bbox[1] = float(bbox_to_find[3])
     right_bbox = [x for x in bbox_to_find]
@@ -264,17 +293,20 @@ def get_table(xml_text, bbox_to_find):
         "left": bbox_to_find,
         "right": right_bbox,
     }
-    first_row = []
 
     # # Searching tags inside the increasing bbox > bottom border -= 2.5% of top border coordinates; right border += 10%
+    first_row = []
+    # # Moving from top to bottom
     while bottom_bbox[1] > 0:
         bottom_bbox[1] -= bbox_to_find[3] * 0.025
         tblr_bbox.update({"bottom": bottom_bbox})
+        # # # Moving from left to right
         while right_bbox[2] < bbox_to_find[2]:
             right_bbox[2] += bbox_to_find[2] * 0.1
             tblr_bbox.update({"right": right_bbox})
             bbox_to_find_first_row = tblr_to_bbox(tblr_bbox)
             item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_row)
+            # # # # If there is any tag > append first_row
             if len(item_tags) > 0:
                 for item in item_tags:
                     first_row.append(item)
@@ -283,12 +315,20 @@ def get_table(xml_text, bbox_to_find):
                 tblr_bbox.update({"left": left_bbox})
         if len(first_row) > 0:
             break
+        # # # Reset the right position (start position)
         right_bbox[2] = bbox_to_find[0]
 
     if len(first_row) == 0:
+        print("\nfirst_row == []")
         return []
 
+    # Unpack tags
+    for item_index in range(len(first_row)):
+        first_row[item_index] = unpack_tags(first_row[item_index])
+
     # Calculating width of columns
+    ...
+    # # Generate column parameters and place them in a list
     list_of_col_params = []
     for column_tag in first_row:
         col_header_bbox = get_bbox(0, column_tag)
@@ -303,11 +343,11 @@ def get_table(xml_text, bbox_to_find):
             }
         list_of_col_params.append(col_params)
 
-    # Finding the smaller left coordinate and the larger right coordinate
+    # # Finding the smaller left coordinate and the larger right coordinate
     for col_params, col_index in zip(list_of_col_params, range(len(list_of_col_params))):
         char_index = 0
 
-        # Find bbox and associated tag
+        # # # Find bbox and associated tag
         while char_index <= len(xml_text) - 3:
             if xml_text[char_index:char_index + 4] == "bbox":
                 tag = get_tag_by_attr_position(char_index, xml_text)
@@ -359,23 +399,139 @@ def get_table(xml_text, bbox_to_find):
 
             char_index += 1
 
+        # # #Rewrite column parameters
         col_width = col_params["right"] - col_params["left"]
-        col_params.update({"width": col_width})
+        col_header_bbox = (
+            col_params["left"],
+            col_params["header_bbox"][1],
+            col_params["right"],
+            col_params["header_bbox"][3]
+        )
+        col_params.update(
+            {
+                "width": col_width,
+                "header_bbox": col_header_bbox,
+            }
+        )
         list_of_col_params[col_index].update(col_params)
 
-    sys.exit()
     # TODO: parse lost text ???
     ...
-    # TODO: get rows heights
+    # TODO: row/column alignment
     ...
+
+    # Calculating heights of rows =====================================================================================
+    ...
+    # # Calculating bbox for find
+    right_bbox = [x for x in list_of_col_params[0]["header_bbox"]]
+    top_bbox = [x for x in list_of_col_params[0]["header_bbox"]]
+    top_bbox[3] = top_bbox[1]
+    bottom_bbox = [x for x in bbox_to_find]
+    bottom_bbox[1] = float(top_bbox[1])
+    left_bbox = [x for x in bbox_to_find]
+    tblr_bbox = {
+        "top": top_bbox,
+        "bottom": bottom_bbox,
+        "left": left_bbox,
+        "right": right_bbox,
+    }
+
+    # # Searching tags inside the increasing bbox > bottom border -= 2.5% of top border coordinates
+    first_col = []
+    # # # Moving from top to bottom
+    while bottom_bbox[1] > 0:
+        bottom_bbox[1] -= bbox_to_find[3] * 0.025
+        tblr_bbox.update({"bottom": bottom_bbox})
+        bbox_to_find_first_col = tblr_to_bbox(tblr_bbox)
+        item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_col)
+        # If there is any tag > append first_col
+        if len(item_tags) > 0:
+            for item in item_tags:
+                first_col.append(item)
+            top_bbox = get_bbox(0, first_col[-1])
+            top_bbox = [0, 0, 0, top_bbox[1]]
+            tblr_bbox.update({"top": top_bbox})
+
+    if len(first_col) == 0:
+        print("\nfirst_col == []")
+        return []
+
+    # Calculating heights of rows
+    ...
+    # # Generate rows parameters and place them in a list
+    list_of_row_params = []
+    for row_tag in first_col:
+        row_header_bbox = get_bbox(0, row_tag)
+        row_header_height = row_header_bbox[3] - row_header_bbox[1]
+        row_middle_coord = row_header_bbox[1] + (row_header_height / 2)
+        row_params = {
+            "bottom": row_header_bbox[1],
+            "top": row_header_bbox[3],
+            "middle": row_middle_coord,
+            "height": row_header_height,
+            "header_bbox": row_header_bbox,
+        }
+        list_of_row_params.append(row_params)
+
+    for row_param, row_index in zip(list_of_row_params, range(len(list_of_row_params))):
+        if row_index < len(list_of_row_params) - 1:
+            row_header_bottom = list_of_row_params[row_index + 1]["top"]
+        else:
+            row_header_bottom = bbox_to_find[1]
+        row_header_height = row_param['top'] - row_header_bottom
+        row_middle_coord = row_header_bottom + (row_header_height / 2)
+        row_header_bbox = [
+            row_param['header_bbox'][0],
+            row_header_bottom,
+            row_param['header_bbox'][2],
+            row_param['header_bbox'][3]
+        ]
+        row_params = {
+            "bottom": row_header_bbox[1],
+            "middle": row_middle_coord,
+            "height": row_header_height,
+            "header_bbox": row_header_bbox,
+        }
+        list_of_row_params[row_index].update(row_params)
+
     # TODO: get columns
     ...
-    # bbox = tblr_to_bbox(tblr_bbox)
-    # tags = get_all_tags_by_name()
+    # Getting table data ==============================================================================================
+    table_data = [get_tag_text(x)[:-1] for x in first_row]
+    table_data = [table_data]
+    for row_params in list_of_row_params:
+        row_items = []
+        for column_params in list_of_col_params:
+            top = row_params["top"]
+            bottom = row_params["bottom"]
+            left = column_params["left"]
+            right = column_params["right"]
+            tblr = {
+                "top": top,
+                "bottom": bottom,
+                "left": left,
+                "right": right,
+            }
+            bbox_to_find_item = tblr_to_bbox(tblr, margin=0.01)
+            tags = tags_inside_bbox(xml_text, bbox_to_find_item)
 
-    table_tags = text_inside_bbox(xml_text, bbox_to_find)
-    # print(table_tags)
-    return None
+            # if tag is parent tag then skip
+            item_string = ""
+            for tag in tags:
+                if tag[-1] == "1":
+                    tag = unpack_tags(tag)
+                item_string += get_tag_text(tag)[:-1]
+            row_items.append(item_string)
+
+        table_data.append(row_items)
+
+    # Create dataframe
+    output_df = pd.DataFrame(
+        table_data[1:],
+        columns=table_data[0]
+    )
+
+    return output_df
 
 
 def text_inside_bbox(xml_text, bbox_to_find):
@@ -487,12 +643,32 @@ def tblr_to_bbox(tblr_bbox, margin=0.005):
     :param margin: float        | 0.01 -> 1%
     :return: list[float]
     """
+    if not if_iterable(tblr_bbox["top"]):
+        top = (0, 0, 0, tblr_bbox["top"])
+    else:
+        top = tblr_bbox["top"]
+
+    if not if_iterable(tblr_bbox["bottom"]):
+        bottom = (0, tblr_bbox["bottom"], 0, 0)
+    else:
+        bottom = tblr_bbox["bottom"]
+
+    if not if_iterable(tblr_bbox["left"]):
+        left = (tblr_bbox["left"], 0, 0, 0)
+    else:
+        left = tblr_bbox["left"]
+
+    if not if_iterable(tblr_bbox["right"]):
+        right = (0, 0, tblr_bbox["right"], 0)
+    else:
+        right = tblr_bbox["right"]
+
     bbox = np.array(
         (
-            float(tblr_bbox["left"][0]),
-            float(tblr_bbox["bottom"][1]),
-            float(tblr_bbox["right"][2]),
-            float(tblr_bbox["top"][3])
+            float(left[0]),
+            float(bottom[1]),
+            float(right[2]),
+            float(top[3])
         )
     )
     margin_diff = bbox * margin
