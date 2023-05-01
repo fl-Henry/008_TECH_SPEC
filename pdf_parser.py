@@ -276,9 +276,9 @@ def unpack_tags(item):
     return item
 
 
-def get_table(xml_text, bbox_to_find):
+def get_table(xml_text, bbox_to_find, margin_x=0.01, margin_y=0.01):
 
-    # TODO: Redefining xml_text for tags inside the bbox_to_find
+    # TODO: Redefining xml_text for tags inside the bbox_to_find > So working time will be less
     ...
     # Calculating widths of columns ===================================================================================
     ...
@@ -440,7 +440,7 @@ def get_table(xml_text, bbox_to_find):
     first_col = []
     # # # Moving from top to bottom
     while bottom_bbox[1] > 0:
-        bottom_bbox[1] -= bbox_to_find[3] * 0.025
+        bottom_bbox[1] -= bbox_to_find[3] * 0.015
         tblr_bbox.update({"bottom": bottom_bbox})
         bbox_to_find_first_col = tblr_to_bbox(tblr_bbox)
         item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_col)
@@ -494,8 +494,6 @@ def get_table(xml_text, bbox_to_find):
         }
         list_of_row_params[row_index].update(row_params)
 
-    # TODO: get columns
-    ...
     # Getting table data ==============================================================================================
     table_data = [get_tag_text(x)[:-1] for x in first_row]
     table_data = [table_data]
@@ -507,20 +505,30 @@ def get_table(xml_text, bbox_to_find):
             left = column_params["left"]
             right = column_params["right"]
             tblr = {
-                "top": top,
-                "bottom": bottom,
                 "left": left,
+                "bottom": bottom,
                 "right": right,
+                "top": top,
             }
-            bbox_to_find_item = tblr_to_bbox(tblr, margin=0.01)
+            bbox_to_find_item = tblr_to_bbox(tblr, margin_x=margin_x, margin_y=margin_y)
             tags = tags_inside_bbox(xml_text, bbox_to_find_item)
 
             # if tag is parent tag then skip
             item_string = ""
             for tag in tags:
-                if tag[-1] == "1":
-                    tag = unpack_tags(tag)
+                # if tag[-1] == "1":
+                #     tag = unpack_tags(tag)
                 item_string += get_tag_text(tag)[:-1]
+
+            # # For debugging
+            # if len(table_data) == 14:
+            #     print("row:", len(table_data))
+            #     print("col:", len(row_items))
+            #     print("bbox_to_find_item:", bbox_to_find_item)
+            #     print("item_string:", item_string)
+            #     print(tags)
+            #     print()
+
             row_items.append(item_string)
 
         table_data.append(row_items)
@@ -569,7 +577,8 @@ def tags_inside_bbox(xml_text, bbox_to_find):
             bbox = get_bbox(char_index, xml_text)
             if check_nesting(bbox, bbox_to_find):
                 tag = get_tag_by_attr_position(char_index, xml_text)
-                char_index += len(tag) - 1
+                bbox_pos = find_position("bbox", tag)
+                char_index += len(tag) - 1 - bbox_pos
                 tags_list.append(tag)
         char_index += 1
     return tags_list
@@ -630,7 +639,7 @@ def convert_pdf_to_xml(file_path):
     return xml_path
 
 
-def tblr_to_bbox(tblr_bbox, margin=0.005):
+def tblr_to_bbox(tblr_bbox, margin=None, margin_x=0.005, margin_y=0.005):
     """
     tblr_bbox = {
         "top": bbox,        \n
@@ -641,6 +650,8 @@ def tblr_to_bbox(tblr_bbox, margin=0.005):
 
     :param tblr_bbox: dict
     :param margin: float        | 0.01 -> 1%
+    :param margin_x: float      | 0.01 -> 1%
+    :param margin_y: float      | 0.01 -> 1%
     :return: list[float]
     """
     if not if_iterable(tblr_bbox["top"]):
@@ -671,9 +682,25 @@ def tblr_to_bbox(tblr_bbox, margin=0.005):
             float(top[3])
         )
     )
-    margin_diff = bbox * margin
+
+    if margin is not None:
+        margin_x = margin
+        margin_y = margin
+
+    margin_diff = [0, 0, 0, 0]
+    x_diff = bbox[2] - bbox[0]
+    y_diff = bbox[3] - bbox[1]
+
+    # Margin Y
+    margin_diff[1] = y_diff * margin_y
+    margin_diff[3] = y_diff * margin_y
+    # Margin X
+    margin_diff[0] = x_diff * margin_x
+    margin_diff[2] = x_diff * margin_x
+
     margin_diff[0] = margin_diff[0] * (-1)
     margin_diff[1] = margin_diff[1] * (-1)
+
     bbox = bbox + margin_diff
 
     return bbox

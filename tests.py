@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Custom imports
 from print_tags import Tags
-from app import url_generator, arg_parser
+from app import url_generator, arg_parser, parse_field_c
 from general_methods import random_dd_mm_yyy, replace_chars
 
 args = arg_parser()
@@ -135,6 +135,31 @@ def tests_replace_chars():
             sys.exit(0)
 
 
+def tests_parce_field_c():
+    if "02" in args["tests_list"]:
+        start_time = datetime.utcnow()
+        counter = 0
+        print(f"\n{Tags.Blue}======= TIMESTAMP UTC ======= {datetime.utcnow()} ======={Tags.ResetAll}")
+
+        c_fields = [
+            "007CC/2016 1149/2017 0333/2010 ",
+            "1149/2017 0333/2010 007CC/2016",
+            "0333/2010 1149/2017 007CC/2016",
+        ]
+        for c_field in c_fields:
+            res = parse_field_c(c_field)
+            print(res)
+
+        end_time = datetime.utcnow()
+        work_time = end_time - start_time
+        print("\nWorking time of the test:", work_time)
+        print(f"Test completed: {counter}/{2} is done")
+        if "EAT" in args["tests_list"]:
+            sys.exit(0)
+
+
+
 if __name__ == '__main__':
     tests_url_generator()
     tests_replace_chars()
+    tests_parce_field_c()

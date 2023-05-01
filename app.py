@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import random
 import pymongo
 import asyncio
@@ -261,7 +262,7 @@ def aux(page_tag):
     :return:
     """
 
-    record = {}
+    rec_header = {}
 
     # Bboxes that edge/border the header
     tblr_bbox = {
@@ -270,20 +271,21 @@ def aux(page_tag):
         "left": (178.68, 887.4, 560.777, 899.4),
         "right": (178.68, 887.4, 560.777, 899.4),
     }
-    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.01)
+    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.02)
 
     # Get text of header
     header_text_list = pp.text_inside_bbox(page_tag, bbox_to_find)
 
-    # JUZGADO
+    # A // JUZGADO
     start_pos = gm.find_string_indexes(header_text_list[0], "SUPERIOR DE JUSTICIA")[1]
     end_pos = gm.find_string_indexes(header_text_list[0], "LISTA DE ACUERDOS")[0]
-    record["juzgado"] = header_text_list[0][start_pos:end_pos]
+    rec_header["A"] = header_text_list[0][start_pos:end_pos]
 
-    # FECHA TODO: format date yyyy/mm/dd
-    record["fecha"] = header_text_list[1][find_number_index(header_text_list[1]):]
+    # B // FECHA TODO: format date yyyy/mm/dd
+    rec_header["B"] = header_text_list[1][find_number_index(header_text_list[1]):-1]
 
-    # TODO: parsing of the table
+    # Parsing of table ================================================================================================
+    ...
     # Finding DURANGO,
     durango_position = pp.find_position("DURANGO,", page_tag)
 
@@ -316,17 +318,82 @@ def aux(page_tag):
         "left": no_bbox,
         "right": page_bbox,
     }
-    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.01)
+    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.005)
 
     # Get table
-    table_df = pp.get_table(page_tag, bbox_to_find)
+    table_df = pp.get_table(page_tag, bbox_to_find, margin_x=0.1, margin_y=0.13)
+    result = table_df.to_json(orient="values")
+    table_json = json.loads(result)
+
     print(table_df)
-    sys.exit()
+    # print(table_json)
 
-    return record
+    # Write data in records
+    list_of_records = []
+    for row_list in table_json:
+        rec = {
+            "A": rec_header["A"],
+            "B": rec_header["B"],
+            "C": row_list[1],
+            "D": row_list[2],
+            "E": row_list[3],
+        }
+        list_of_records.append(rec)
+
+    return list_of_records
 
 
-def parsing_pdf(paf_path):
+def parse_field_c(field_c_string):
+    c_list =[x.strip() for x in field_c_string.split()]
+
+    if len(c_list) > 1:
+        i_field = ""
+        c_field_list = []
+        for item in c_list:
+            if len(c_field_list) == 0:
+                c_field_list.append(item)
+            elif "CC" in item:
+                if len(c_field_list) > 1:
+                    i_field = c_field_list[-1]
+                    c_field_list[-1] = item
+                else:
+                    c_field_list.append(item)
+            elif ("CC" not in c_field_list[-1]) and (int(item[-4:]) < int(c_field_list[-1][-4:])):
+                if len(i_field) == 0:
+                    i_field = item
+                else:
+                    if int(item[-4:]) < int(i_field[-4:]):
+                        c_field_list.append(i_field)
+                        i_field = item
+                    else:
+                        bl = c_field_list[-1]
+                        c_field_list[-1] = item
+                        c_field_list.append(bl)
+            elif int(item[-4:]) > int(c_field_list[-1][-4:]):
+                bl = c_field_list[-1]
+                c_field_list[-1] = item
+                c_field_list.append(bl)
+            else:
+                c_field_list.append(item)
+
+            print(c_field_list)
+            print(i_field)
+            print()
+
+        c_i_dict = {
+            "C": " ".join(c_field_list),
+            "I": i_field,
+        }
+    else:
+        c_i_dict = {
+            "C": c_list[0],
+            "I": "",
+        }
+
+    return c_i_dict
+
+
+def parsing_pdf(pdf_path):
 
     record = {
         "actor": "",                         # "actor"
@@ -357,8 +424,8 @@ def parsing_pdf(paf_path):
     }
 
     # Convert PDF to XML
-    # xml_path = pp.convert_pdf_to_xml(paf_path)
-    xml_path = "./temp/capital/2642023_aux1.xml"
+    # xml_path = pp.convert_pdf_to_xml(pdf_path)
+    xml_path = "./temp/capital/2792017_aux1.xml"
 
     # Parsing whole xml document
     parsed_xml = pp.parse_xml(xml_path)
@@ -368,21 +435,37 @@ def parsing_pdf(paf_path):
     # Getting the whole page
     pages_tags = pp.get_all_tags_by_name("LTPage", parsed_xml["xml_text"])
 
+    # Doc type // part of filename
+    file_name = url_to_name(xml_path)
+    doc_type = file_name[find_char_index(file_name, "_") + 1:find_char_index(file_name, ".") + 1]
+
     # Parsing of all pages
     for page_tag in pages_tags:
-
-        # MATERIA
-        file_name = url_to_name(xml_path)
-        doc_type = file_name[find_char_index(file_name, "_") + 1:find_char_index(file_name, ".") + 1]
-        record["materia"] = get_materia(doc_type)
-
+        print("\n======================================== Page ========================================\n")
         # Choosing relevant parsing script
         if doc_type in ["aux1.", "aux2."]:
-            rec = aux(page_tag)
-            record.update(rec)
-            print(record)
-        # break
 
+            # Getting table data as fields A B C D E
+            rec_list = aux(page_tag)
+
+            # Parsing of table data
+            h = get_materia(doc_type)
+            for rec_index in range(len(rec_list)):
+
+                # H // MATERIA
+                rec_list[rec_index].update({"H": h})
+
+                # C I // EXPEDIENTE and EXPEDIENTE ORIGEN
+                parsed_c = parse_field_c(rec_list[rec_index]["C"])
+                rec_list[rec_index].update(parsed_c)
+
+                parsed_e = parse_field_e(rec_list[rec_index]["E"])
+
+                sys.exit()
+            # print(rec_list)
+            # print("\n")
+
+    sys.exit()
     return None
 
 
@@ -414,7 +497,7 @@ def start_app():
     #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
     # }
 
-    # # Getting values for url_generator
+    # Getting values for url_generator
     # values_for_url = scrape_values_for_urls()
 
     # # Creating urls of files
@@ -424,14 +507,14 @@ def start_app():
     #     values_for_url=values_for_url
     # )
 
-    # Save file to temporary folder
+    # # Save file to temporary folder
     # asyncio.run(save_reports(files_urls))
 
     # Connect to DB
     # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
 
     # Parsing pdf files
-    pdf_path = "./temp/capital/2642023_aux1.pdf"
+    pdf_path = "./temp/capital/2792017_aux1.pdf"
     dicts = parsing_pdf(pdf_path)
 
     # Delete temp folder
