@@ -76,8 +76,8 @@ def arg_parser():
     # Parsing of arguments
     try:
         parser = argparse.ArgumentParser(description='TECH_SPEC')
-        parser.add_argument('--tests', dest='tests_str', default=None,
-                            help='Names of testes // separator "-"; Ex: "01-02-03"')
+        # parser.add_argument('--tests', dest='tests_str', default=None,
+        #                     help='Names of testes // separator "-"; Ex: "01-02-03"')
         parser.add_argument('--start-date', dest='start_date', default='1-1-2023',
                             help='Which date is scraping starts from // dd-mm-yyyy; Ex: "31-12-2022"')
         parser.add_argument('--end-date', dest='end_date', default=None,
@@ -92,7 +92,7 @@ def arg_parser():
 
         # Arguments
         args = {}
-        args.update({"tests_list": str(parsed_args.tests_str).split("-")})
+        # args.update({"tests_list": str(parsed_args.tests_str).split("-")})
         args.update({"start_date": [int(x) for x in str(parsed_args.start_date).split("-")]})
         if parsed_args.end_date is None:
             parsed_args.end_date = datetime.today().strftime("%d-%m-%Y")
@@ -129,11 +129,48 @@ def delete_last_print_lines(n=1):
 # # ===== String Methods ========================================================================= String Methods =====
 
 
-def find_number_index(in_string):
+def remove_repeated_char(string_to_remove, char=" "):
+    key_to_exit = False
+    infinity_loop_counter = 0
+    while not key_to_exit:
+        key_to_exit = True
+        for char_index in range(len(string_to_remove)):
+            if string_to_remove[char_index:char_index + 2] == char * 2:
+
+                # Repeat the loop for 3 and more repeated chars
+                key_to_exit = False
+
+                # Count repeated chars
+                end_char_index = 0
+                for last_char_index in range(len(string_to_remove[char_index:])):
+                    if string_to_remove[char_index + last_char_index] != char:
+                        end_char_index = last_char_index
+                        break
+
+                string_to_remove = string_to_remove[:char_index] + string_to_remove[char_index + end_char_index - 1:]
+
+        # Checking if the loop is an infinite one
+        if infinity_loop_counter < 10_000:
+            infinity_loop_counter += 1
+        else:
+            raise Exception("[ERROR] remove_repeated_char > infinity_loop_counter > 10_000")
+
+    return string_to_remove
+
+
+def find_number_indexes(in_string):
     in_list = [str(x) for x in range(10)]
-    for index in range(len(in_string)):
-        if in_string[index] in in_list:
-            return index
+    for start_num_index in range(len(in_string)):
+        if in_string[start_num_index] in in_list:
+
+            # Count last number in the sequence
+            last_num_index = start_num_index
+            for last_char_ind in range(start_num_index, len(in_string)):
+                if in_string[last_char_ind] not in in_list:
+                    last_num_index = last_char_ind
+                    break
+
+            return start_num_index, last_num_index
 
 
 def find_char_index(in_string, char):
@@ -144,6 +181,11 @@ def find_char_index(in_string, char):
 
 
 def find_string_indexes(in_string, string_to_find):
+    """
+    :param in_string:
+    :param string_to_find:
+    :return: [first_index, last_indes] or None
+    """
     for index in range(len(in_string) - len(string_to_find)):
         if in_string[index:index + len(string_to_find)] == string_to_find:
             return index, index + len(string_to_find)
@@ -589,8 +631,10 @@ def random_dd_mm_yyy(start_date, end_date: tuple[int, int, int] = None):
             end_date = datetime(year=end_date[2], month=end_date[1], day=end_date[0])
         else:
             raise ValueError
+
     start_date = datetime(year=start_date[2], month=start_date[1], day=start_date[0])
     random_date = start_date + timedelta(seconds=random.randint(0, int((end_date - start_date).total_seconds())))
+
     dd = int(str(random_date.strftime("%d")))
     mm = int(str(random_date.strftime("%m")))
     yyyy = int(str(random_date.strftime("%Y")))

@@ -12,18 +12,18 @@ import pandas as pd
 
 # from aiohttp_socks import ChainProxyConnector, ProxyConnector
 from aiohttp_retry import RetryClient, ExponentialRetry
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from pdfquery import PDFQuery
+from json import JSONEncoder
 from time import sleep
 
 # Custom imports
 import pdf_parser as pp
 import general_methods as gm
 
-from general_methods import DaNHandler, arg_parser, dates_between, url_to_name, replace_chars, find_char_index, \
-    find_number_index
+from general_methods import DaNHandler, arg_parser, dates_between, url_to_name, replace_chars, find_char_index
 
 from print_tags import Tags
 
@@ -47,6 +47,15 @@ HEADERS = {
 # # ===== General Methods ======================================================================= General Methods =====
 ...
 # # ===== General Methods ======================================================================= General Methods =====
+
+
+# subclass JSONEncoder
+class DateTimeEncoder(JSONEncoder):
+
+    # Override the default method
+    def default(self, obj):
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
 
 
 async def write_file(session, file_url, file_path, stdout_key=False):
@@ -81,54 +90,6 @@ async def write_file(session, file_url, file_path, stdout_key=False):
                 if stdout_key:
                     print(f'{Tags.Yellow}File is downloaded:{Tags.ResetAll} {file_url}')
                     print(f'               Dir: {file_path}')
-
-
-def get_materia(doc_type):
-    """"""
-    match_dict = {
-        "aux1.": "CIVIL",
-        "aux2.": "CIVIL",
-        "civ2.": "CIVIL",
-        "civ3.": "CIVIL",
-        "civ4.": "CIVIL",
-        "fam1.": "FAMILIAR",
-        "fam2.": "FAMILIAR",
-        "fam3.": "FAMILIAR",
-        "fam4.": "FAMILIAR",
-        "fam5.": "FAMILIAR",
-        "mer1.": "CIVIL",
-        "mer2.": "CIVIL",
-        "mer3.": "CIVIL",
-        "mer4.": "CIVIL",
-        "merOral.": "CIVIL",
-        "seccc.": "CIVIL",
-        "seccu.": "CIVIL",
-        "cjmf1.": "FAMILIAR",
-        "cjmf2.": "FAMILIAR",
-        "tribl.": "LABORAL",
-        "Civ1GP.": "CIVIL",
-        "Civ2GP.": "CIVIL",
-        "Fam1GP.": "FAMILIAR",
-        "Fam2GP.": "FAMILIAR",
-        "AuxMixtoGP.": "CIVIL",
-        "Fam3GP.": "CIVIL",
-        "secccGP.": "CIVIL",
-        "seccuGP.": "CIVIL",
-        "triblG.": "LABORAL",
-        "Mixto1Lerdo.": "CIVIL",
-        "Mixto2Lerdo.": "CIVIL",
-        "canatlan.": "CIVIL",
-        "nombrededios.": "CIVIL",
-        "nazas.": "CIVIL",
-        "cuencame.": "CIVIL",
-        "sanjuandelrio.": "CIVIL",
-        "elsalto.": "CIVIL",
-        "santamariadeloro.": "CIVIL",
-        "victoria.": "CIVIL",
-        "santiago.": "CIVIL",
-    }
-    materia = match_dict[doc_type]
-    return materia
 
 
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
@@ -228,34 +189,268 @@ async def save_reports(files_urls):
 # # ===== Parsing Methods ======================================================================= Parsing Methods =====
 
 
+def get_materia(doc_type):
+    """"""
+
+    match_dict = {
+        "aux1.": "CIVIL",
+        "aux2.": "CIVIL",
+        "civ2.": "CIVIL",
+        "civ3.": "CIVIL",
+        "civ4.": "CIVIL",
+        "fam1.": "FAMILIAR",
+        "fam2.": "FAMILIAR",
+        "fam3.": "FAMILIAR",
+        "fam4.": "FAMILIAR",
+        "fam5.": "FAMILIAR",
+        "mer1.": "CIVIL",
+        "mer2.": "CIVIL",
+        "mer3.": "CIVIL",
+        "mer4.": "CIVIL",
+        "merOral.": "CIVIL",
+        "seccc.": "CIVIL",
+        "seccu.": "CIVIL",
+        "cjmf1.": "FAMILIAR",
+        "cjmf2.": "FAMILIAR",
+        "tribl.": "LABORAL",
+        "Civ1GP.": "CIVIL",
+        "Civ2GP.": "CIVIL",
+        "Fam1GP.": "FAMILIAR",
+        "Fam2GP.": "FAMILIAR",
+        "AuxMixtoGP.": "CIVIL",
+        "Fam3GP.": "CIVIL",
+        "secccGP.": "CIVIL",
+        "seccuGP.": "CIVIL",
+        "triblG.": "LABORAL",
+        "Mixto1Lerdo.": "CIVIL",
+        "Mixto2Lerdo.": "CIVIL",
+        "canatlan.": "CIVIL",
+        "nombrededios.": "CIVIL",
+        "nazas.": "CIVIL",
+        "cuencame.": "CIVIL",
+        "sanjuandelrio.": "CIVIL",
+        "elsalto.": "CIVIL",
+        "santamariadeloro.": "CIVIL",
+        "victoria.": "CIVIL",
+        "santiago.": "CIVIL",
+    }
+
+    match_entidad_dict = {
+        "aux1.": "DE LA CAPITAL",
+        "aux2.": "DE LA CAPITAL",
+        "civ2.": "DE LA CAPITAL",
+        "civ3.": "DE LA CAPITAL",
+        "civ4.": "DE LA CAPITAL",
+        "fam1.": "DE LA CAPITAL",
+        "fam2.": "DE LA CAPITAL",
+        "fam3.": "DE LA CAPITAL",
+        "fam4.": "DE LA CAPITAL",
+        "fam5.": "DE LA CAPITAL",
+        "mer1.": "DE LA CAPITAL",
+        "mer2.": "DE LA CAPITAL",
+        "mer3.": "DE LA CAPITAL",
+        "mer4.": "DE LA CAPITAL",
+        "merOral.": "DE LA CAPITAL",
+        "seccc.": "DE LA CAPITAL",
+        "seccu.": "DE LA CAPITAL",
+        "cjmf1.": "DE LA CAPITAL",
+        "cjmf2.": "DE LA CAPITAL",
+        "tribl.": "DE LA CAPITAL",
+        "Civ1GP.": "GOMEZ PALACIO Y LERDO",
+        "Civ2GP.": "GOMEZ PALACIO Y LERDO",
+        "Fam1GP.": "GOMEZ PALACIO Y LERDO",
+        "Fam2GP.": "GOMEZ PALACIO Y LERDO",
+        "AuxMixtoGP.": "GOMEZ PALACIO Y LERDO",
+        "Fam3GP.": "GOMEZ PALACIO Y LERDO",
+        "secccGP.": "GOMEZ PALACIO Y LERDO",
+        "seccuGP.": "GOMEZ PALACIO Y LERDO",
+        "triblG.": "GOMEZ PALACIO Y LERDO",
+        "Mixto1Lerdo.": "GOMEZ PALACIO Y LERDO",
+        "Mixto2Lerdo.": "GOMEZ PALACIO Y LERDO",
+        "canatlan.": "CANATLAN",
+        "nombrededios.": "NOMBRE DE DIOS",
+        "nazas.": "NAZAS",
+        "cuencame.": "CUENCAME",
+        "sanjuandelrio.": "SAN JUAN DEL RIO",
+        "elsalto.": "GUADALUPE VICTORIA",
+        "santamariadeloro.": "SANTIAGO PAPASQUIARO",
+        "victoria.": "EL SALTO PUEBLO NUEVO",
+        "santiago.": "SANTA MARIA DEL ORO",
+    }
+
+    materia = match_dict[doc_type]
+    entidad = match_entidad_dict[doc_type]
+
+    dict_to_return = {
+        "materia": materia,
+        "entidad": entidad,
+    }
+    return dict_to_return
+
+
+def parse_field_b(b_field):
+    """
+       dict_to_return = {
+            "fecha": yyyy/mm/dd",
+            "fecha_insercion": datetime.now(),
+            "fecha_tecnica": datetime(year=int(yyyy), month=int(mm), day=int(dd))
+       }
+
+    :param b_field:
+    :return:
+    """
+    months = {
+        "enero": "1",             # "January",
+        "febrero": "2",           # "February",
+        "marzo": "3",             # "March",
+        "abril": "4",             # "April",
+        "mayo": "5",              # "May",
+        "junio": "6",             # "June",
+        "julio": "7",             # "July",
+        "agosto": "8",            # "August",
+        "septiembre": "9",        # "September",
+        "octubre": "10",          # "October",
+        "noviembre": "11",        # "November",
+        "diciembre": "12",        # "December",
+    }
+
+    # Finding dd
+    dd_indexes = gm.find_number_indexes(b_field)
+    dd = b_field[dd_indexes[0]:dd_indexes[1]]
+
+    # Finding yyyy
+    yyyy_indexes = gm.find_number_indexes("".join([x for x in reversed(b_field)]))
+    if yyyy_indexes[0] != 0:
+        yyyy = b_field[-yyyy_indexes[1]:-yyyy_indexes[0]]
+    else:
+        yyyy = b_field[-yyyy_indexes[1]:]
+
+    # Finding mm
+    mm = None
+    for sp_mm in months.keys():
+        if sp_mm in b_field:
+            mm = months[sp_mm]
+
+    if (mm is None) or (dd is None) or (yyyy is None):
+        raise Exception("[ERROR] parse_field_b > (mm is None) or (dd is None) or (yyyy is None)")
+
+    dict_to_return = {
+        "fecha": f"{yyyy}/{mm}/{dd}",
+        "fecha_insercion": datetime.now(),
+        "fecha_tecnica": datetime(year=int(yyyy), month=int(mm), day=int(dd))
+    }
+
+    return dict_to_return
+
+
+def parse_field_c(field_c_string):
+    c_list = [x.strip().split("/") for x in field_c_string.split()]
+    c_df = pd.DataFrame(
+        c_list,
+        columns=["article", "year"]
+    )
+    c_df = c_df.sort_values(by="year", ignore_index=True)
+
+    # First row without "CC" puts in  i_field
+    i_field = ""
+    for row in c_df.itertuples():
+        if "CC" in c_df.loc[0][0]:
+            continue
+        i_field += f"{row[1]}/{row[2]}"
+        break
+
+    # Other rows puts in c_field
+    c_field = ""
+    for row in c_df.itertuples():
+        current_str = f"{row[1]}/{row[2]}"
+        if current_str not in i_field:
+            c_field += current_str + " "
+
+    if c_field == "":
+        c_field = i_field
+        i_field = ""
+
+    dict_to_return = {
+        "expediente": c_field.strip(),
+        "expediente_origen": i_field,
+    }
+    return dict_to_return
+
+
+def parse_field_e(e_field_string):
+    """"""
+    """
+    # TODO: 1 - G = "(*)" or "(*(*))" and remove from string
+    #       2 - locate of "Vs"
+    #           2.1 if there is not "Vs" than E = remaining string
+    #       3 - E = string before "Vs"
+    #       4 - F = string after "Vs"
+    patterns = [
+        "(*)",      # G // also (*(*))
+        "<-- Vs",   # E
+        "Vs -->",   # F
+    ]
+    """
+
+    # G = "( -->"
+    g_field_location = gm.find_string_indexes(e_field_string, "(")
+    if g_field_location is not None:
+        g_field = e_field_string[g_field_location[0]:]
+        e_field_string = e_field_string[:g_field_location[0]]
+    else:
+        g_field = ""
+
+    # E = "<-- Vs"  //  F = "Vs -->"
+    vs_location = gm.find_string_indexes(e_field_string, "Vs")
+    if vs_location is not None:
+        e_field = e_field_string[:vs_location[0]]
+        f_field = e_field_string[vs_location[0] + 3:]
+    else:
+        e_field = e_field_string
+        f_field = ""
+
+    dict_to_return = {
+        "actor": e_field,
+        "demandado": f_field,
+        "acuerdos": g_field,
+    }
+    return dict_to_return
+
+
+def parse_field_d(d_field_string):
+    after_strings = [
+        "DISTRITO JUDICIAL",
+    ]
+
+    after_strings_locations_list = []
+    for after_string in after_strings:
+        after_strings_locations = gm.find_string_indexes(d_field_string, after_string)
+        if after_strings_locations is not None:
+            after_strings_locations_list.append(after_strings_locations)
+
+    if len(after_strings_locations_list) > 0:
+        after_strings_locations = after_strings_locations_list[0]
+        j_field = d_field_string[:after_strings_locations[1]]
+        d_field = d_field_string[after_strings_locations[1]:]
+    else:
+        j_field = ""
+        d_field = d_field_string
+
+    dict_to_return = {
+        "tipo": d_field,
+        "Organo_jurisdiccional_origen": j_field,
+    }
+    return dict_to_return
+
+
 def aux(page_tag):
     """
         return {
-            "actor": "",                          \n
-            "demandado": "",                      \n
-            "entidad": "",                        \n
-            "expediente": "",                     \n
-            "fecha": "",                          \n
-            "fuero": "",                          \n
-            "juzgado": "",                        \n
-            "tipo": "",                           \n
-            "acuerdos": "",                       \n
-            "monto": "",                          \n
-            "fecha_presentacion": "",             \n
-            "actos_reclamados": "",               \n
-            "actos_reclamados_especificos": "",   \n
-            "Naturaleza_procedimiento": "",       \n
-            "Prestación_demandada": "",           \n
-            "Organo_jurisdiccional_origen": "",   \n
-            "expediente_origen": "",              \n
-            "materia": "",                        \n
-            "submateria": "",                     \n
-            "fecha_sentencia": "",                \n
-            "sentido_sentencia": "",              \n
-            "resoluciones": "",                   \n
-            "origen": "",                         \n
-            "fecha_insercion": "",                \n
-            "fecha_tecnica": "",                  \n
+            "A": str,                      \n
+            "B": str,                      \n
+            "C": str,                      \n
+            "D": str,                      \n
+            "E": str,                      \n
         }
 
     :param page_tag:
@@ -279,10 +474,12 @@ def aux(page_tag):
     # A // JUZGADO
     start_pos = gm.find_string_indexes(header_text_list[0], "SUPERIOR DE JUSTICIA")[1]
     end_pos = gm.find_string_indexes(header_text_list[0], "LISTA DE ACUERDOS")[0]
-    rec_header["A"] = header_text_list[0][start_pos:end_pos]
+    rec_header["juzgado"] = header_text_list[0][start_pos:end_pos]
 
     # B // FECHA TODO: format date yyyy/mm/dd
-    rec_header["B"] = header_text_list[1][find_number_index(header_text_list[1]):-1]
+    b_field = header_text_list[1][gm.find_number_indexes(header_text_list[1])[0]:-1]
+    parsed_field_b = parse_field_b(b_field)
+    rec_header.update(parsed_field_b)
 
     # Parsing of table ================================================================================================
     ...
@@ -325,102 +522,56 @@ def aux(page_tag):
     result = table_df.to_json(orient="values")
     table_json = json.loads(result)
 
-    print(table_df)
+    # print(table_df)
     # print(table_json)
-
+    ...
     # Write data in records
     list_of_records = []
     for row_list in table_json:
         rec = {
-            "A": rec_header["A"],
-            "B": rec_header["B"],
             "C": row_list[1],
             "D": row_list[2],
             "E": row_list[3],
         }
+        rec.update(rec_header)
         list_of_records.append(rec)
 
     return list_of_records
 
 
-def parse_field_c(field_c_string):
-    c_list =[x.strip() for x in field_c_string.split()]
-
-    if len(c_list) > 1:
-        i_field = ""
-        c_field_list = []
-        for item in c_list:
-            if len(c_field_list) == 0:
-                c_field_list.append(item)
-            elif "CC" in item:
-                if len(c_field_list) > 1:
-                    i_field = c_field_list[-1]
-                    c_field_list[-1] = item
-                else:
-                    c_field_list.append(item)
-            elif ("CC" not in c_field_list[-1]) and (int(item[-4:]) < int(c_field_list[-1][-4:])):
-                if len(i_field) == 0:
-                    i_field = item
-                else:
-                    if int(item[-4:]) < int(i_field[-4:]):
-                        c_field_list.append(i_field)
-                        i_field = item
-                    else:
-                        bl = c_field_list[-1]
-                        c_field_list[-1] = item
-                        c_field_list.append(bl)
-            elif int(item[-4:]) > int(c_field_list[-1][-4:]):
-                bl = c_field_list[-1]
-                c_field_list[-1] = item
-                c_field_list.append(bl)
-            else:
-                c_field_list.append(item)
-
-            print(c_field_list)
-            print(i_field)
-            print()
-
-        c_i_dict = {
-            "C": " ".join(c_field_list),
-            "I": i_field,
-        }
-    else:
-        c_i_dict = {
-            "C": c_list[0],
-            "I": "",
-        }
-
-    return c_i_dict
-
-
 def parsing_pdf(pdf_path):
 
     record = {
-        "actor": "",                         # "actor"
-        "demandado": "",                     # "defendant"
-        "entidad": "",                       # "entity"
-        "expediente": "",                    # "file"
-        "fecha": "",                         # "date"
-        "fuero": "",                         # "jurisdiction"
-        "juzgado": "",                       # "court"
-        "tipo": "",                          # "type"
-        "acuerdos": "",                      # "agreements"
-        "monto": "",                         # "amount"
-        "fecha_presentacion": "",            # "date filed"
-        "actos_reclamados": "",              # "claimed acts"
-        "actos_reclamados_especificos": "",  # "specific claimed acts"
-        "Naturaleza_procedimiento": "",      # "Nature of the proceeding"
-        "Prestación_demandada": "",          # "Benefit demanded"
-        "Organo_jurisdiccional_origen": "",  # "Jurisdiction of origin"
-        "expediente_origen": "",             # "original case file"
-        "materia": "",                       # "subject matter"
-        "submateria": "",                    # "sub-subject matter"
-        "fecha_sentencia": "",               # "date of judgment"
-        "sentido_sentencia": "",             # "sense judgment"
-        "resoluciones": "",                  # "resolutions"
-        "origen": "",                        # "origin"
-        "fecha_insercion": "",               # "date of insertion"
-        "fecha_tecnica": "",                 # "technical date"
+        "actor": "",                         # "E"
+        "demandado": "",                     # "F"
+        "entidad": "",                       # "+"
+        "expediente": "",                    # "C"
+        "fecha": "",                         # "B"
+        "fuero": "",                         # "d"
+        "juzgado": "",                       # "A"
+        "tipo": "",                          # "D"
+        "acuerdos": "",                      # "G"
+        "monto": "",                         # " "
+        "fecha_presentacion": "",            # " "
+        "actos_reclamados": "",              # " "
+        "actos_reclamados_especificos": "",  # " "
+        "Naturaleza_procedimiento": "",      # " "
+        "Prestación_demandada": "",          # " "
+        "Organo_jurisdiccional_origen": "",  # "J"
+        "expediente_origen": "",             # "I"
+        "materia": "",                       # "H"
+        "submateria": "",                    # " "
+        "fecha_sentencia": "",               # " "
+        "sentido_sentencia": "",             # " "
+        "resoluciones": "",                  # " "
+        "origen": "",                        # "d"
+        "fecha_insercion": "",               # "+"
+        "fecha_tecnica": "",                 # "+"
+    }
+
+    default_record = {
+        "fuero": "COMUN",
+        "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO",
     }
 
     # Convert PDF to XML
@@ -436,12 +587,15 @@ def parsing_pdf(pdf_path):
     pages_tags = pp.get_all_tags_by_name("LTPage", parsed_xml["xml_text"])
 
     # Doc type // part of filename
-    file_name = url_to_name(xml_path)
+    file_name = gm.url_to_name(xml_path)
     doc_type = file_name[find_char_index(file_name, "_") + 1:find_char_index(file_name, ".") + 1]
 
     # Parsing of all pages
+    pdf_recs_list = []
     for page_tag in pages_tags:
-        print("\n======================================== Page ========================================\n")
+        # print("\n==================================== Page ====================================\n")
+        rec_list = []
+
         # Choosing relevant parsing script
         if doc_type in ["aux1.", "aux2."]:
 
@@ -452,18 +606,40 @@ def parsing_pdf(pdf_path):
             h = get_materia(doc_type)
             for rec_index in range(len(rec_list)):
 
-                # H // MATERIA
-                rec_list[rec_index].update({"H": h})
+                # H // MATERIA and "entidad"
+                rec_list[rec_index].update(h)
 
                 # C I // EXPEDIENTE and EXPEDIENTE ORIGEN
                 parsed_c = parse_field_c(rec_list[rec_index]["C"])
                 rec_list[rec_index].update(parsed_c)
+                del rec_list[rec_index]["C"]
 
+                # E F G // ACTOR, DEMANDADO and ACUERDOS
                 parsed_e = parse_field_e(rec_list[rec_index]["E"])
+                rec_list[rec_index].update(parsed_e)
+                del rec_list[rec_index]["E"]
 
-                sys.exit()
-            # print(rec_list)
-            # print("\n")
+                # D I // TIPO and ORGANO JURISDICCIONAL ORIGEN
+                parsed_d = parse_field_d(rec_list[rec_index]["D"])
+                rec_list[rec_index].update(parsed_d)
+                del rec_list[rec_index]["D"]
+
+                # + default records
+                rec_list[rec_index].update(default_record)
+
+        # Removing double spaces and set UPPER case
+        for rec in rec_list:
+            for key in rec.keys():
+                if type(rec[key]) == str:
+                    rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
+            pdf_recs_list.append(rec)
+
+    # Save to json file
+    json_file_path = pdf_path[:-3] + "json"
+    print("Saving to:", json_file_path, end=".... ")
+    with open(json_file_path, "w") as json_file:
+        json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
+    print("Saved")
 
     sys.exit()
     return None
