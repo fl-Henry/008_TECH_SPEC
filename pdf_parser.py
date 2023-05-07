@@ -1,285 +1,163 @@
 # TODO: rewrite as a OOP
 import sys
 
-import pdfquery
+import pytesseract
 import numpy as np
 import pandas as pd
 
+# Custom imports
+import general_methods as gm
+
 
 # # ===== General Methods ======================================================================= General Methods =====
 ...
 # # ===== General Methods ======================================================================= General Methods =====
 
-
-def if_iterable(obj):
-    try:
-        obj_to_try = iter(obj)
-    except TypeError as te:
-        return False
-    return True
-
-
-def url_to_name(file_url, iter_count=1):
-    input_file_url = file_url
-    file_name = file_url
-    process_url = file_url
-    error_counter = 0
-    while iter_count > 0:
-
-        # Checking infinite loop
-        error_counter += 1
-        if error_counter > 8000:
-            print("[ERROR] url_to_name > infinite loop")
-            print(input_file_url)
-            raise LookupError
-
-        # Method logic
-        if process_url[-1] == '/':
-            process_url = process_url[:-1]
-        for _ in range(1, len(process_url)):
-            char = process_url[-1]
-            if char == '/':
-                file_name = file_url[len(process_url):]
-                file_url = process_url[:-1]
-                iter_count -= 1
-                break
-            else:
-                process_url = process_url[:-1]
-    return file_name
-
-
-def url_parent(file_url, iter_count=1):
-    input_file_url = file_url
-    parent_url = file_url
-    process_url = file_url
-    error_counter = 0
-    while iter_count > 0:
-
-        # Checking infinite loop
-        error_counter += 1
-        if error_counter > 8000:
-            print("[ERROR] url_parent > infinite loop")
-            print(input_file_url)
-            raise LookupError
-
-        # Method logic
-        if process_url[-1] == '/':
-            process_url = process_url[:-1]
-        for _ in range(1, len(process_url)):
-            char = process_url[-1]
-            if char == '/':
-                parent_url = process_url
-                iter_count -= 1
-                break
-            else:
-                process_url = process_url[:-1]
-
-    return parent_url
-
+...
 
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 ...
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 
 
-def find_tag_name_by_char_index(char_index, dom):
+def add_margin_to_ltrbbox(ltrbbox, margin):
     """
+        Expanding the ltrbbox
+            ltrbbox = [100, 100, 1000, 1000]    ->      ltrbbox = [99,   98, 1001, 1002]
+            margin = [0.01, 0.02]               ->      margin  = [-1%, -2%,  +1%,  +2%]
 
-    :param char_index: int      | The index of char inside the tag brackets "<" and ">" that are inside the dom string
-    :param dom: str             | The DOM as a string
-    :return: str                | Tag name
+    :param ltrbbox: list[float]   | [<left_coordinate>, <top_coordinate>, <right_coordinate>, <bottom_coordinate>]
+    :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
+    :return:
     """
-    for tag_name_close_index in range(len(dom[char_index:])):
-        if dom[char_index + tag_name_close_index] == " ":
-            return dom[char_index + 1:char_index + tag_name_close_index]
+    margin_x = margin[0]
+    margin_y = margin[1]
+
+    # width and height of ltrbbox
+    x_len = ltrbbox[2] - ltrbbox[0]
+    y_len = ltrbbox[3] - ltrbbox[1]
+
+    # Margins for Y and X
+    margin_y = y_len * margin_y
+    margin_x = x_len * margin_x
+
+    # Recalculating ltrbbox
+    ltrbbox[0] = ltrbbox[0] - margin_x  # left
+    ltrbbox[1] = ltrbbox[1] - margin_y  # top
+    ltrbbox[2] = ltrbbox[2] + margin_x  # right
+    ltrbbox[3] = ltrbbox[3] + margin_y  # bottom
+
+    return ltrbbox
 
 
-def get_tag_by_attr_position(char_index, dom):
-
-    # Finding open bracket for tag
-    open_index = 0
-    for open_bracket_index in range(char_index):
-        if dom[char_index - open_bracket_index] == "<":
-            open_index = char_index - open_bracket_index
-            break
-
-    # Getting tag name
-    tag_name = find_tag_name_by_char_index(open_index, dom)
-
-    # Finding close bracket for tag
-    close_index = 0
-    is_parent = False
-    for close_bracket_index in range(len(dom[char_index:])):
-        current_position = char_index + close_bracket_index
-        if dom[current_position:current_position + len(tag_name) + 3] == f"</{tag_name}>":
-            close_index = current_position + len(tag_name) + 3
-            break
-        if dom[current_position] == "<":
-            is_parent = True
-
-    if is_parent:
-        tag = f"{dom[open_index:close_index]}1"
-    else:
-        tag = f"{dom[open_index:close_index]}0"
-
-    return tag
-
-
-def find_position(string_to_find, dom):
-    for tag_name_open_index in range(len(dom) - len(string_to_find)):
-        dom_process_str = dom[tag_name_open_index:tag_name_open_index + len(string_to_find)]
-        if dom_process_str == string_to_find:
-            return tag_name_open_index
-    return None
-
-
-def get_tag_by_name(tag_name, dom):
+def get_data_df_inside_ltrbbox(ltrbbox, data_df, margin=None):
     """
-
-    :param tag_name: str        | The name of tag
-    :param dom: str             | The DOM as a string
-    :return: str                | First tag that has the same name
-    """
-    # Getting the tag name position
-    tag_name_first_char_index = find_position(tag_name, dom)
-
-    # Getting the whole tag
-    tag = get_tag_by_attr_position(tag_name_first_char_index, dom)
-    return tag
-
-
-def get_all_tags_by_name(tag_name, dom):
-    """
-
-        :param tag_name: str        | The name of tag
-        :param dom: str             | The DOM as a string
-        :return: str                | All tags that has the same name
+            Getting DataFrame with rows whose coordinates are inside the ltrbbox
+        :param ltrbbox: list[float]   | [<left_coordinate>, <top_coordinate>, <right_coordinate>, <bottom_coordinate>]
+        :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
+        :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
+        :return:
         """
-    # Finding the tag position
-    tag_name_first_char_index_list = []
-    for tag_name_open_index in range(len(dom) - len(tag_name)):
-        dom_process_str = dom[tag_name_open_index:tag_name_open_index + len(tag_name)]
-        dom_process_str_previous_char = dom[tag_name_open_index - 1]
-        if (dom_process_str == tag_name) and dom_process_str_previous_char != "/":
-            tag_name_first_char_index_list.append(tag_name_open_index)
+    ltrbbox = [float(x) for x in ltrbbox]
 
-    # Getting the whole tags
-    tag_list = []
-    for tag_name_first_char_index in tag_name_first_char_index_list:
-        tag = get_tag_by_attr_position(tag_name_first_char_index, dom)
-        tag_list.append(tag)
+    # Recalculating ltrbbox
+    if margin is not None:
+        ltrbbox = add_margin_to_ltrbbox(ltrbbox, margin)
 
-    return tag_list
+    # Getting rows inside the ltrbbox
+    df_to_return = pd.DataFrame()
+    for index, row in data_df.iterrows():
 
+        # Conditions
+        if_left = float(row["left"]) > ltrbbox[0]
+        if_top = float(row["top"]) > ltrbbox[1]
+        if_right = float(row["right"]) < ltrbbox[2]
+        if_bottom = float(row["bottom"]) < ltrbbox[3]
 
-def get_bbox(char_index, dom):
-    # Finding open bracket for bbox
-    open_index = char_index
-    if dom[char_index + 7] == "[":
-        open_index = char_index + 7
-    else:
-        for open_bracket_index in range(len(dom[char_index:])):
-            if dom[char_index + open_bracket_index] == "[":
-                open_index = char_index + open_bracket_index + 1
-                break
+        if if_left and if_top and if_right and if_bottom:
+            row = row.to_frame().T.reset_index(drop=True)
+            df_to_return = pd.concat([df_to_return, row], ignore_index=True)
 
-    # Finding close bracket for tag
-    close_index = 0
-    for close_bracket_index in range(len(dom[char_index:])):
-        if dom[char_index + close_bracket_index] == "]":
-            close_index = char_index + close_bracket_index
-            break
-
-    bbox = [float(x.strip()) for x in dom[open_index:close_index].split(",")]
-
-    return bbox
+    return df_to_return
 
 
-def relative_bbox_to_bbox(relative_bbox, page_bbox):
+def get_text_inside_ltrbbox(ltrbbox, data_df, margin=None):
     """
-
-    :param relative_bbox: tuple[float]  | (20, 20, 80, 80) -> (20%, 20%, 80%, 80%)
-    :param page_bbox: tuple[float]      | (0, 0, 300, 600) -> (x0, y0, x1, y1)
+        Getting list["text"] that inside the ltrbbox
+    :param ltrbbox: list[float]   | [<left_coordinate>, <top_coordinate>, <right_coordinate>, <bottom_coordinate>]
+    :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
+    :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
     :return:
     """
-    relative_bbox = np.array(relative_bbox)
-    page_bbox = np.array((page_bbox[2], page_bbox[3], page_bbox[2], page_bbox[3])).transpose()
-    return np.multiply(relative_bbox * 0.01, page_bbox)
+
+    ltrbbox = [float(x) for x in ltrbbox]
+
+    # Recalculating ltrbbox
+    if margin is not None:
+        ltrbbox = add_margin_to_ltrbbox(ltrbbox, margin)
+
+    # Getting list of text that is inside the box
+    text_list = []
+    for index, row in data_df.iterrows():
+
+        # Conditions
+        if_left = float(row["left"]) > ltrbbox[0]
+        if_top = float(row["top"]) > ltrbbox[1]
+        if_right = float(row["right"]) < ltrbbox[2]
+        if_bottom = float(row["bottom"]) < ltrbbox[3]
+
+        if if_left and if_top and if_right and if_bottom:
+            text_list.append(row["text"])
+
+    return text_list
 
 
-def check_nesting(bbox, parent_bbox):
+def get_rb_columns(page_data_df):
     """
-
-    :param bbox: tuple[float]             | (200, 200, 300, 600) -> (x0, y0, x1, y1)
-    :param parent_bbox: tuple[float]      | (200, 200, 300, 600) -> (x0, y0, x1, y1)
+        Getting right and bottom coordinates for each row
+    :param page_data_df:
     :return:
     """
-    # Checking types of input
-    if (type(bbox) == list) or (type(bbox) == tuple):
-        bbox = np.array(bbox)
-    elif type(bbox) == np.ndarray:
-        pass
-    else:
-        print("[ERROR] check_nesting > wrong bbox type:", type(bbox), "bbox:", bbox)
+    # Get names of columns
+    start_columns_names = page_data_df.columns
+    columns_names = []
+    for col in start_columns_names:
+        if col == "height":
+            columns_names.extend(["height", "right", "bottom"])
+        else:
+            columns_names.append(col)
 
-    if (type(parent_bbox) == list) or (type(parent_bbox) == tuple):
-        parent_bbox = np.array(parent_bbox)
-    elif type(parent_bbox) == np.ndarray:
-        pass
-    else:
-        print("[ERROR] check_nesting > wrong parent_bbox type:", type(parent_bbox), "parent_bbox:", parent_bbox)
+    # Calculating right and bottom coordinates
+    df_to_return = pd.DataFrame([], columns=columns_names)
+    for index, row in page_data_df.iterrows():
+        row["right"] = int(row["left"]) + int(row["width"])
+        row["bottom"] = int(row["top"]) + int(row["height"])
 
-    check_bbox = bbox - parent_bbox
-    filter_bbox = check_bbox < 0
-    filter_bbox_to_check = (False, False, True, True)
-    if ((filter_bbox[0] == filter_bbox_to_check[0]) and
-        (filter_bbox[1] == filter_bbox_to_check[1]) and
-        (filter_bbox[2] == filter_bbox_to_check[2]) and
-        (filter_bbox[3] == filter_bbox_to_check[3])
-    ):
-        return True
-    else:
-        return False
+        row = row.to_frame().T.reset_index(drop=True)
+        df_to_return = pd.concat([df_to_return, row], ignore_index=True)
+
+    # Changing type of some columns
+    types_dict = {col: "int32" for col in ["left", "top", "width", "height", "right", "bottom"]}
+    df_to_return = df_to_return.astype(types_dict)
+
+    return df_to_return
 
 
-def get_tag_text(tag):
+def table_from_data_df(data_df: pd.DataFrame, margin=None):
     """
 
-    :param tag: str
+    :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
+    :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
     :return:
     """
-    text = ""
-    key_to_write = False
-    for char in tag:
-        if char == "<":
-            key_to_write = False
-        if key_to_write:
-            text += char
-        if char == ">":
-            key_to_write = True
-    return text
+    if margin is None:
+        margin = [0.001, 0.002]
 
+    data_df = data_df.sort_values(by=["top", "left"], ascending=True).reset_index(drop=True)
+    print(data_df)
 
-def unpack_tags(item):
-    char_index = 0
-    while char_index <= len(item) - 3:
-        if item[char_index:char_index + 4] == "bbox":
-            tag = get_tag_by_attr_position(char_index, item)
+    sys.exit()
 
-            # if tag is parent tag then skip
-            if tag[-1] == "1":
-                char_index += 1
-                continue
-            else:
-                return tag
-        char_index += 1
-    return item
-
-
-def get_table(xml_text, bbox_to_find, margin_x=0.01, margin_y=0.01):
-
-    # TODO: Redefining xml_text for tags inside the bbox_to_find > So working time will be less
-    ...
     # Calculating widths of columns ===================================================================================
     ...
     # # Calculating start tblr_bbox
@@ -304,7 +182,7 @@ def get_table(xml_text, bbox_to_find, margin_x=0.01, margin_y=0.01):
         while right_bbox[2] < bbox_to_find[2]:
             right_bbox[2] += bbox_to_find[2] * 0.1
             tblr_bbox.update({"right": right_bbox})
-            bbox_to_find_first_row = tblr_to_bbox(tblr_bbox)
+            bbox_to_find_first_row = tblr_to_bbox(tblr_bbox, margin=0.01)
             item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_row)
             # # # # If there is any tag > append first_row
             if len(item_tags) > 0:
@@ -542,168 +420,33 @@ def get_table(xml_text, bbox_to_find, margin_x=0.01, margin_y=0.01):
     return output_df
 
 
-def text_inside_bbox(xml_text, bbox_to_find):
-    """
-
-    :param xml_text: str                        | XML as a string or tag as a string
-    :param bbox_to_find: tuple[float]           | (0, 0, 10, 10)
-    :return: list[str]                          | The list of text inside the bbox_to_find
-    """
-    content_list = []
-    char_index = 0
-    while char_index <= len(xml_text) - 3:
-        if xml_text[char_index:char_index + 4] == "bbox":
-            bbox = get_bbox(char_index, xml_text)
-            if check_nesting(bbox, bbox_to_find):
-                tag = get_tag_by_attr_position(char_index, xml_text)
-                char_index += len(tag) - 1
-                tag_text = get_tag_text(tag)
-                content_list.append(tag_text)
-        char_index += 1
-    return content_list
 
 
-def tags_inside_bbox(xml_text, bbox_to_find):
-    """
-
-    :param xml_text: str                        | XML as a string or tag as a string
-    :param bbox_to_find: tuple[float]           | (0, 0, 10, 10)
-    :return: list[str]                          | The list of text inside the bbox_to_find
-    """
-    tags_list = []
-    char_index = 0
-    while char_index <= len(xml_text) - 3:
-        if xml_text[char_index:char_index + 4] == "bbox":
-            bbox = get_bbox(char_index, xml_text)
-            if check_nesting(bbox, bbox_to_find):
-                tag = get_tag_by_attr_position(char_index, xml_text)
-                bbox_pos = find_position("bbox", tag)
-                char_index += len(tag) - 1 - bbox_pos
-                tags_list.append(tag)
-        char_index += 1
-    return tags_list
 
 
-def parse_xml(xml_path):
-    """
-    return = {
-        "xml_text": str,                                    \n
-        "page_bbox": bbox,                                  \n
-    }
+def get_page_data_df(page_data):
 
-    :param xml_path: str        | The path to XML file
-    :return: dict               |
-    """
-    with open(xml_path, mode="r") as xml_file:
-        xml_text = xml_file.read()
+    # Page recognition with tesseract
+    data_array = np.array(page_data)
+    page_as_str = pytesseract.image_to_data(data_array)
+    page_as_str = gm.replace_chars(page_as_str)
 
-    # Finding page bbox
-    page_bbox = None
-    for char_index in range(len(xml_text) - 3):
-        if xml_text[char_index:char_index + 4] == "bbox":
-            bbox = get_bbox(char_index, xml_text)
-            if (bbox[0] == 0) and (bbox[1] == 0):
-                page_bbox = bbox
-                break
-            else:
-                continue
-
-    if page_bbox is None:
-        print("[ERROR] xml_find > page_bbox is None")
-        print("xml_text:", xml_text)
-        raise ValueError
-
-    return {"xml_text": xml_text, "page_bbox": page_bbox}
-
-
-def convert_pdf_to_xml(file_path):
-    """
-
-    :param file_path: str       | Path to pdf file
-    :return: str                | XML path
-    """
-
-    # Load the PDF
-    pdf = pdfquery.PDFQuery(file_path)
-    pdf.load()
-
-    # Create XML path
-    pdf_name = url_to_name(file_path)
-    xml_name = pdf_name[:-3] + "xml"
-    file_dir = url_parent(file_path)
-    xml_path = f"{file_dir}{xml_name}"
-
-    # Convert the pdf to XML
-    pdf.tree.write(xml_path, pretty_print=False)
-
-    return xml_path
-
-
-def tblr_to_bbox(tblr_bbox, margin=None, margin_x=0.005, margin_y=0.005):
-    """
-    tblr_bbox = {
-        "top": bbox,        \n
-        "bottom": bbox,     \n
-        "left": bbox,       \n
-        "right": bbox,      \n
-    }
-
-    :param tblr_bbox: dict
-    :param margin: float        | 0.01 -> 1%
-    :param margin_x: float      | 0.01 -> 1%
-    :param margin_y: float      | 0.01 -> 1%
-    :return: list[float]
-    """
-    if not if_iterable(tblr_bbox["top"]):
-        top = (0, 0, 0, tblr_bbox["top"])
-    else:
-        top = tblr_bbox["top"]
-
-    if not if_iterable(tblr_bbox["bottom"]):
-        bottom = (0, tblr_bbox["bottom"], 0, 0)
-    else:
-        bottom = tblr_bbox["bottom"]
-
-    if not if_iterable(tblr_bbox["left"]):
-        left = (tblr_bbox["left"], 0, 0, 0)
-    else:
-        left = tblr_bbox["left"]
-
-    if not if_iterable(tblr_bbox["right"]):
-        right = (0, 0, tblr_bbox["right"], 0)
-    else:
-        right = tblr_bbox["right"]
-
-    bbox = np.array(
-        (
-            float(left[0]),
-            float(bottom[1]),
-            float(right[2]),
-            float(top[3])
-        )
+    # Creating DataFrame from string
+    page_data_array = [list(map(lambda x: x.upper(), j.split("\t"))) for j in [x for x in page_as_str.split("\n")]]
+    page_data_df = pd.DataFrame(
+        page_data_array[1:],
+        columns=[x.lower() for x in page_data_array[0]]
     )
+    page_data_df.iloc[0]["text"] = "page_size"
 
-    if margin is not None:
-        margin_x = margin
-        margin_y = margin
+    # Drop all None or "" rows
+    in_list = ['', "None", "NONE", None]
+    page_data_df = page_data_df.loc[~page_data_df["text"].isin(in_list)].reset_index(drop=True)
 
-    margin_diff = [0, 0, 0, 0]
-    x_diff = bbox[2] - bbox[0]
-    y_diff = bbox[3] - bbox[1]
+    # Getting right and bottom coordinates for each row
+    page_data_df = get_rb_columns(page_data_df)
 
-    # Margin Y
-    margin_diff[1] = y_diff * margin_y
-    margin_diff[3] = y_diff * margin_y
-    # Margin X
-    margin_diff[0] = x_diff * margin_x
-    margin_diff[2] = x_diff * margin_x
-
-    margin_diff[0] = margin_diff[0] * (-1)
-    margin_diff[1] = margin_diff[1] * (-1)
-
-    bbox = bbox + margin_diff
-
-    return bbox
+    return page_data_df
 
 
 def main():

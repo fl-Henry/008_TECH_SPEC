@@ -124,6 +124,14 @@ def delete_last_print_lines(n=1):
         sys.stdout.write(ERASE_LINE)
 
 
+def if_iterable(obj):
+    try:
+        obj_to_try = iter(obj)
+    except TypeError as te:
+        return False
+    return True
+
+
 # # ===== String Methods ========================================================================= String Methods =====
 ...
 # # ===== String Methods ========================================================================= String Methods =====
@@ -186,7 +194,7 @@ def find_string_indexes(in_string, string_to_find):
     :param string_to_find:
     :return: [first_index, last_indes] or None
     """
-    for index in range(len(in_string) - len(string_to_find)):
+    for index in range(len(in_string) - len(string_to_find) + 1):
         if in_string[index:index + len(string_to_find)] == string_to_find:
             return index, index + len(string_to_find)
     return None

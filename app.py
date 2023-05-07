@@ -2,28 +2,39 @@ import os
 import sys
 import json
 import random
-import pymongo
 import asyncio
 import aiohttp
 import aiofiles
 import argparse
 import requests
+import numpy as np
 import pandas as pd
 
-# from aiohttp_socks import ChainProxyConnector, ProxyConnector
+# sudo apt-get install gnupg
+# echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+# sudo apt-get update
+# sudo apt-get install -y mongodb-org
+import pymongo
+
+# sudo apt-get install tesseract-ocr
+import pytesseract
+
+# sudo apt-get install poppler-utils
+from pdf2image import convert_from_path
+
+
 from aiohttp_retry import RetryClient, ExponentialRetry
 from datetime import datetime, timedelta, date
+
+from PIL import Image, PdfImagePlugin
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
-from pdfquery import PDFQuery
 from json import JSONEncoder
 from time import sleep
 
 # Custom imports
 import pdf_parser as pp
 import general_methods as gm
-
-from general_methods import DaNHandler, arg_parser, dates_between, url_to_name, replace_chars, find_char_index
 
 from print_tags import Tags
 
@@ -34,8 +45,8 @@ from print_tags import Tags
 
 ...
 # Parsing the arguments
-args = arg_parser()
-dan = DaNHandler()
+args = gm.arg_parser()
+dan = gm.DaNHandler()
 
 ua = UserAgent()
 HEADERS = {
@@ -92,6 +103,19 @@ async def write_file(session, file_url, file_path, stdout_key=False):
                     print(f'               Dir: {file_path}')
 
 
+def get_all_files_by_extension(dir_to_find: str, extension: str):
+    list_of_pdfs = []
+    for inner_dir in os.listdir(dir_to_find):
+        for item_file in os.listdir(f"{dir_to_find}{inner_dir}"):
+            if item_file[-3:].upper() == extension.upper():
+                list_of_pdfs.append(f"{dir_to_find}{inner_dir}/{item_file}")
+            else:
+                print("File removed:", f"{dan.dirs['temp_dir']}{inner_dir}/{item_file}")
+                os.remove(f"{dan.dirs['temp_dir']}{inner_dir}/{item_file}")
+
+    return list_of_pdfs
+
+
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 ...
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
@@ -145,7 +169,7 @@ def scrape_values_for_urls():
 
 def get_files_urls(star_date, end_date, values_for_url):
     # Getting all dates between star_date and end_date
-    dates_list = dates_between(star_date, end_date)
+    dates_list = gm.dates_between(star_date, end_date)
 
     # Creating blank dict for every key
     file_url_dict = {}
@@ -175,8 +199,8 @@ async def save_reports(files_urls):
             file_dir = f"{dan.dirs[key]}"
             for der in files_urls[key]:
                 for file_url in files_urls[key][der]:
-                    file_date = url_to_name(file_url, iter_count=2)
-                    file_name = url_to_name(file_url)
+                    file_date = gm.url_to_name(file_url, iter_count=2)
+                    file_name = gm.url_to_name(file_url)
                     file_path = f"{file_dir}{file_date}_{file_name}"
                     task = asyncio.create_task(write_file(session, file_url, file_path, stdout_key=True))
                     tasks.append(task)
@@ -328,8 +352,9 @@ def parse_field_b(b_field):
     # Finding mm
     mm = None
     for sp_mm in months.keys():
-        if sp_mm in b_field:
+        if sp_mm in b_field.lower():
             mm = months[sp_mm]
+            break
 
     if (mm is None) or (dd is None) or (yyyy is None):
         raise Exception("[ERROR] parse_field_b > (mm is None) or (dd is None) or (yyyy is None)")
@@ -340,7 +365,7 @@ def parse_field_b(b_field):
         "fecha_tecnica": datetime(year=int(yyyy), month=int(mm), day=int(dd))
     }
 
-    return dict_to_return
+    return dict_to_return, sp_mm
 
 
 def parse_field_c(field_c_string):
@@ -443,7 +468,51 @@ def parse_field_d(d_field_string):
     return dict_to_return
 
 
-def aux(page_tag):
+def parse_header(page_data_df):
+    """
+
+    :param page_data_df:
+    :return: rec_header, sp_mm, no_row, page_size_row
+    """
+    rec_header = {}
+
+    # Getting "No." row for bottom coordinate
+    no_row = page_data_df.loc[page_data_df["text"] == "No.".upper()].reset_index(drop=True).iloc[0]
+
+    # Getting page_size_row for top, left and right coordinates
+    page_size_row = page_data_df.iloc[0]
+
+    # Getting text inside header_ltrbbox
+    header_ltrbbox = [page_size_row["left"], page_size_row["top"], page_size_row["right"], no_row["bottom"]]
+    header_text_list = pp.get_text_inside_ltrbbox(header_ltrbbox, page_data_df)
+
+    # Separate text by "Dictados el dia"
+    dictados_index = [x for x in range(len(header_text_list)) if "dictados".upper() in header_text_list[x]][0]
+    after_dictados_text = " ".join(header_text_list[dictados_index:])
+    before_dictados_text = " ".join(header_text_list[:dictados_index])
+
+    # A // JUZGADO
+    start_pos = gm.find_string_indexes(before_dictados_text, "SUPERIOR DE JUSTICIA".upper())
+    if start_pos is not None:
+        start_pos = start_pos[1]
+    else:
+        raise IndexError("[ERROR] aux() > start_pos is not None")
+    end_pos = gm.find_string_indexes(before_dictados_text, "LISTA DE ACUERDOS".upper())
+    if end_pos is not None:
+        end_pos = end_pos[0]
+    else:
+        raise IndexError("[ERROR] aux() > end_pos is not None")
+    rec_header["juzgado"] = before_dictados_text[start_pos:end_pos]
+
+    # B // FECHA
+    b_field = after_dictados_text[gm.find_number_indexes(after_dictados_text)[0]:]
+    parsed_field_b, sp_mm = parse_field_b(b_field)
+    rec_header.update(parsed_field_b)
+
+    return rec_header, sp_mm, no_row, page_size_row
+
+
+def aux(page_data_df):
     """
         return {
             "A": str,                      \n
@@ -453,72 +522,44 @@ def aux(page_tag):
             "E": str,                      \n
         }
 
-    :param page_tag:
+    :param page_data_df:
     :return:
     """
 
-    rec_header = {}
+    # Parsing header
+    rec_header, sp_mm, no_row, page_size_row = parse_header(page_data_df)
 
-    # Bboxes that edge/border the header
-    tblr_bbox = {
-        "top": (236.04, 915.72, 503.381, 927.72),
-        "bottom": (240.96, 849.72, 498.436, 861.72),
-        "left": (178.68, 887.4, 560.777, 899.4),
-        "right": (178.68, 887.4, 560.777, 899.4),
-    }
-    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.02)
-
-    # Get text of header
-    header_text_list = pp.text_inside_bbox(page_tag, bbox_to_find)
-
-    # A // JUZGADO
-    start_pos = gm.find_string_indexes(header_text_list[0], "SUPERIOR DE JUSTICIA")[1]
-    end_pos = gm.find_string_indexes(header_text_list[0], "LISTA DE ACUERDOS")[0]
-    rec_header["juzgado"] = header_text_list[0][start_pos:end_pos]
-
-    # B // FECHA TODO: format date yyyy/mm/dd
-    b_field = header_text_list[1][gm.find_number_indexes(header_text_list[1])[0]:-1]
-    parsed_field_b = parse_field_b(b_field)
-    rec_header.update(parsed_field_b)
-
-    # Parsing of table ================================================================================================
+    # Parsing of table
     ...
-    # Finding DURANGO,
-    durango_position = pp.find_position("DURANGO,", page_tag)
+    # Finding sp_mm (Spanish month) to determine bottom coordinate of the table
+    sp_mms = page_data_df.loc[page_data_df["text"] == sp_mm.upper()].reset_index(drop=True)
 
-    if durango_position is None:
-        # Getting PAGINA bbox
-        pagina_position = pp.find_position("PAGINA", page_tag)
-        pagina_tag = pp.get_tag_by_attr_position(pagina_position, page_tag)
-        pagina_bbox = pp.get_bbox(0, pagina_tag)
-        bottom_bbox = pagina_bbox
+    if len(sp_mms) > 1:
+        # Getting top coordinate of "DURANGO A ** DE sp_mm DE ****" as bottom coordinate of the table
+        bottom = sp_mms.iloc[1]["top"]
+
     else:
-        # Getting DURANGO, bbox
-        durango_position = pp.find_position("DURANGO,", page_tag)
-        durango_tag = pp.get_tag_by_attr_position(durango_position, page_tag)
-        durango_bbox = pp.get_bbox(0, durango_tag)
-        bottom_bbox = durango_bbox
-    bottom_bbox[1] = bottom_bbox[3]
+        # Getting top coordinate of "PAGINA" as bottom coordinate of the table
+        sp_mms = page_data_df.loc[page_data_df["text"] == "PAGINA".upper()].reset_index(drop=True)
+        bottom = sp_mms.iloc[0]["top"]
 
-    # Getting page_bbox
-    page_bbox = pp.get_bbox(0, page_tag)
-
-    # Getting No. bbox
-    no_position = pp.find_position("No.", page_tag)
-    no_tag = pp.get_tag_by_attr_position(no_position, page_tag)
-    no_bbox = pp.get_bbox(0, no_tag)
-
-    # Bboxes that edge/border the table
-    tblr_bbox = {
-        "top": no_bbox,
-        "bottom": bottom_bbox,
-        "left": no_bbox,
-        "right": page_bbox,
-    }
-    bbox_to_find = pp.tblr_to_bbox(tblr_bbox, margin=0.005)
+    # Getting data_df for table
+    table_ltrbbox = [page_size_row["left"], no_row["top"], page_size_row["right"], bottom]
+    table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.005])
 
     # Get table
-    table_df = pp.get_table(page_tag, bbox_to_find, margin_x=0.1, margin_y=0.13)
+    table_df = pp.table_from_data_df(table_df)
+
+
+
+    print(table_df)
+    sys.exit()
+
+    if len(table_df) == 0:
+        return []
+
+
+
     result = table_df.to_json(orient="values")
     table_json = json.loads(result)
 
@@ -527,14 +568,19 @@ def aux(page_tag):
     ...
     # Write data in records
     list_of_records = []
-    for row_list in table_json:
-        rec = {
-            "C": row_list[1],
-            "D": row_list[2],
-            "E": row_list[3],
-        }
-        rec.update(rec_header)
-        list_of_records.append(rec)
+    # TODO: If "No. Expediente"
+    try:
+        for row_list in table_json:
+            rec = {
+                "C": row_list[1],
+                "D": row_list[2],
+                "E": row_list[3],
+            }
+            rec.update(rec_header)
+            list_of_records.append(rec)
+    except IndexError as _ex:
+        print(f"[ERROR] Write data in records > {_ex}")
+        return []
 
     return list_of_records
 
@@ -574,33 +620,33 @@ def parsing_pdf(pdf_path):
         "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO",
     }
 
-    # Convert PDF to XML
-    # xml_path = pp.convert_pdf_to_xml(pdf_path)
-    xml_path = "./temp/capital/2792017_aux1.xml"
-
-    # Parsing whole xml document
-    parsed_xml = pp.parse_xml(xml_path)
-
-    parsed_xml.update({"xml_text": replace_chars(parsed_xml["xml_text"])})
-
-    # Getting the whole page
-    pages_tags = pp.get_all_tags_by_name("LTPage", parsed_xml["xml_text"])
-
     # Doc type // part of filename
-    file_name = gm.url_to_name(xml_path)
-    doc_type = file_name[find_char_index(file_name, "_") + 1:find_char_index(file_name, ".") + 1]
+    file_name = gm.url_to_name(pdf_path)
+    doc_type = file_name[gm.find_char_index(file_name, "_") + 1:gm.find_char_index(file_name, ".") + 1]
 
     # Parsing of all pages
     pdf_recs_list = []
-    for page_tag in pages_tags:
+    doc = convert_from_path(pdf_path)
+    for page_number, page_data in enumerate(doc):
+        if page_number + 1 != 2:
+            continue
+
         # print("\n==================================== Page ====================================\n")
         rec_list = []
 
-        # Choosing relevant parsing script
-        if doc_type in ["aux1.", "aux2."]:
+        # Getting page data as DataFrame
+        page_data_df = pp.get_page_data_df(page_data)
 
+        # Choosing relevant parsing script
+        # list_of_doc_types = ["aux1.", "aux2.", "civ2.", ""]
+        # if doc_type in ["aux1.", "aux2."]:
+        if True:
             # Getting table data as fields A B C D E
-            rec_list = aux(page_tag)
+            rec_list = aux(page_data_df)
+
+            print(page_data_df)
+            sys.exit()
+
 
             # Parsing of table data
             h = get_materia(doc_type)
@@ -639,9 +685,8 @@ def parsing_pdf(pdf_path):
     print("Saving to:", json_file_path, end=".... ")
     with open(json_file_path, "w") as json_file:
         json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
-    print("Saved")
+    print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
 
-    sys.exit()
     return None
 
 
@@ -673,25 +718,32 @@ def start_app():
     #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
     # }
 
-    # Getting values for url_generator
+    # # Getting values for url_generator
     # values_for_url = scrape_values_for_urls()
-
+    #
     # # Creating urls of files
     # files_urls = get_files_urls(
     #     star_date=args['start_date'],
     #     end_date=args['end_date'],
     #     values_for_url=values_for_url
     # )
-
+    #
     # # Save file to temporary folder
     # asyncio.run(save_reports(files_urls))
 
     # Connect to DB
     # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
 
-    # Parsing pdf files
-    pdf_path = "./temp/capital/2792017_aux1.pdf"
-    dicts = parsing_pdf(pdf_path)
+    # # Parsing pdf files
+    # pdf_path = "./temp/capital/2792017_aux1.pdf"
+    # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/lerdo/2792017_Fam3GP.pdf"
+    # dicts = parsing_pdf(pdf_path)
+
+    all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
+    for pdf_path in all_pdf_paths:
+        print("\nProcessing:", pdf_path)
+        dicts = parsing_pdf(pdf_path)
+        sys.exit()
 
     # Delete temp folder
     # dan.remove_dirs()

@@ -103,7 +103,7 @@ if [ "$r_key" = true ]; then
 fi
 
 # Start app
-printf "\nStart app\n"
+printf "\n\033[93m%s\033[0m\n" "Start app"
 printf "%s\n" "python $pt $str_param > "
 echo "$str_param" | xargs python "$pt"
 printf "\n%s\n\n" "< python $pt $str_param"
