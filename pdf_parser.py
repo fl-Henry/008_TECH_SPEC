@@ -129,10 +129,11 @@ def get_rb_columns(page_data_df):
 
     # Calculating right and bottom coordinates
     df_to_return = pd.DataFrame([], columns=columns_names)
+    rounding_value = min([int(x) for x in page_data_df.head()["height"]]) // 5 * 2
     for index, row in page_data_df.iterrows():
         row["right"] = int(row["left"]) + int(row["width"])
+        row["top"] = int(row["top"]) // rounding_value * rounding_value
         row["bottom"] = int(row["top"]) + int(row["height"])
-
         row = row.to_frame().T.reset_index(drop=True)
         df_to_return = pd.concat([df_to_return, row], ignore_index=True)
 
@@ -141,6 +142,131 @@ def get_rb_columns(page_data_df):
     df_to_return = df_to_return.astype(types_dict)
 
     return df_to_return
+
+
+def ltrbbox_from_data_df_row(data_df_row):
+    return [data_df_row["left"], data_df_row["top"], data_df_row["right"], data_df_row["bottom"]]
+
+
+def find_near_words(ltrbbox, space_px_len, data_df, direction="RL"):
+    """
+
+    :param ltrbbox: list[float]   | [<left_coordinate>, <top_coordinate>, <right_coordinate>, <bottom_coordinate>]
+    :param space_px_len: int      | length of space in pixels
+    :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
+    :param direction:             | Direction of searching ["R", "L", "RL"]
+    :return:
+    """
+    if direction.upper() == "L":
+        ltrbbox[0] -= space_px_len
+    elif direction.upper() == "R":
+        ltrbbox[2] += space_px_len
+    else:
+        ltrbbox[0] -= space_px_len
+        ltrbbox[2] += space_px_len
+
+
+    # adding margin for Y direction
+    ltrbbox = add_margin_to_ltrbbox(ltrbbox, margin=[0, 0.05])
+
+    # Searching rows
+    df_to_return = pd.DataFrame()
+    for index, row in data_df.iterrows():
+
+        # Conditions
+        if_left = (row["left"] < ltrbbox[0]) and (row["right"] > ltrbbox[0])
+        if_top = row["top"] > ltrbbox[1]
+        if_right = (row["right"] > ltrbbox[2]) and (row["left"] < ltrbbox[2])
+        if_bottom = row["bottom"] < ltrbbox[3]
+
+        # row_ = row.to_frame().T.reset_index(drop=True)
+        # print(ltrbbox, if_left, if_right)
+        # print(row_)
+
+        if if_top and if_bottom:
+            if if_left or if_right:
+                row = row.to_frame().T.reset_index(drop=True)
+                df_to_return = pd.concat([df_to_return, row], ignore_index=True)
+
+    return df_to_return
+
+
+def collapse_all_data_df_rows(data_df):
+    df_to_return = data_df.iloc[0]
+
+    max_cols = ["right", "bottom"]
+    for max_col in max_cols:
+        df_to_return[max_col] = data_df[max_col].max()
+
+    min_cols = ["left", "top"]
+    for min_col in min_cols:
+        df_to_return[min_col] = data_df[min_col].min()
+
+    str_cols = ["text"]
+    str_separator = " "
+    for str_col in str_cols:
+        str_cols_list = []
+        for index, row in data_df.iterrows():
+            if len(row[str_col]) > 0:
+                str_cols_list.append(row[str_col])
+        df_to_return[str_col] = str_separator.join(str_cols_list)
+
+    df_to_return["height"] = df_to_return["bottom"] - df_to_return["top"]
+    df_to_return["width"] = df_to_return["right"] - df_to_return["left"]
+
+    df_to_return = df_to_return.to_frame().T.reset_index(drop=True)
+
+    return df_to_return
+
+
+def find_columns(table_data_df, space_px_len):
+
+    # Start ltrbbox for finding first row
+    min_left = min([x for x in table_data_df["left"]])
+    min_top = min([x for x in table_data_df["top"]])
+    max_right = max([x for x in table_data_df["right"]])
+    max_bottom = max([x for x in table_data_df["bottom"]])
+    table_height = max_bottom - min_top
+    table_width = max_right - min_left
+    # top_bot_step = table_height * 0.01 // 1
+    top_bot_step = table_data_df["height"].head().sum() // len(table_data_df.head()) // 3
+    left_right_step = table_width * 0.02 // 1
+    fr_ltrbbox = [min_left, min_top, min_left, min_top]
+
+    # Searching words inside the increasing box > bottom border += 1% of table height; right border += 1% of width
+    columns_df = pd.DataFrame()
+    # Moving from top to bottom
+    while fr_ltrbbox[3] < max_bottom:
+        fr_ltrbbox[3] += top_bot_step
+        fr_ltrbbox[2] = min_left
+
+        # Moving from left to right
+        while fr_ltrbbox[2] < max_right:
+            fr_ltrbbox[2] += left_right_step
+            df_1 = get_data_df_inside_ltrbbox(fr_ltrbbox, table_data_df, margin=[0.01, 0.01])
+
+            # If there is something then find words near
+            if len(df_1) > 0:
+                if not len(columns_df) > 0:
+                    fr_ltrbbox[3] += top_bot_step * 2
+
+                # Finding near words
+                near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
+                column_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="R")
+                while len(column_df) > 0:
+                    row_df = pd.concat([df_1, column_df], ignore_index=True)
+                    df_1 = collapse_all_data_df_rows(row_df)
+                    near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
+                    column_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="R")
+
+                columns_df = pd.concat([columns_df, df_1], ignore_index=True)
+                fr_ltrbbox[0] = columns_df.iloc[-1]["right"]
+            else:
+                continue
+        if len(columns_df) > 0:
+            break
+
+    return columns_df
 
 
 def table_from_data_df(data_df: pd.DataFrame, margin=None):
@@ -154,8 +280,18 @@ def table_from_data_df(data_df: pd.DataFrame, margin=None):
         margin = [0.001, 0.002]
 
     data_df = data_df.sort_values(by=["top", "left"], ascending=True).reset_index(drop=True)
-    print(data_df)
 
+    # Calculating spaces between words
+    single_char_indexes = data_df["text"].str.len() == 1
+    single_char_df = data_df.loc[single_char_indexes]
+    space_px_len = sum([x for x in single_char_df["width"].head(10)]) / len(single_char_df["width"].head(10)) * 1.3 // 1
+    space_px_len = int(space_px_len)
+
+    # Finding columns
+    columns_df = find_columns(data_df, space_px_len)
+
+
+    print(columns_df)
     sys.exit()
 
     # Calculating widths of columns ===================================================================================
@@ -443,7 +579,7 @@ def get_page_data_df(page_data):
     in_list = ['', "None", "NONE", None]
     page_data_df = page_data_df.loc[~page_data_df["text"].isin(in_list)].reset_index(drop=True)
 
-    # Getting right and bottom coordinates for each row
+    # Getting right and bottom coordinates for each row and rounding top coordinates
     page_data_df = get_rb_columns(page_data_df)
 
     return page_data_df
