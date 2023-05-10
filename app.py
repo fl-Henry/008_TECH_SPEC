@@ -370,6 +370,9 @@ def parse_field_b(b_field):
 
 def parse_field_c(field_c_string):
     c_list = [x.strip().split("/") for x in field_c_string.split()]
+    for index in range(len(c_list)):
+        if len(c_list[index]) == 1:
+            c_list[index] = [c_list[index][0][:-4], c_list[index][0][-4:]]
     c_df = pd.DataFrame(
         c_list,
         columns=["article", "year"]
@@ -531,56 +534,45 @@ def aux(page_data_df):
 
     # Parsing of table
     ...
-    # Finding sp_mm (Spanish month) to determine bottom coordinate of the table
-    sp_mms = page_data_df.loc[page_data_df["text"] == sp_mm.upper()].reset_index(drop=True)
 
-    if len(sp_mms) > 1:
-        # Getting top coordinate of "DURANGO A ** DE sp_mm DE ****" as bottom coordinate of the table
-        bottom = sp_mms.iloc[1]["top"]
-
+    # Getting top coordinate of "NOTIFICACION" as bottom coordinate of the table
+    mask = ["NOTIFICACION".upper() in x for x in page_data_df["text"].values]
+    notif = page_data_df[mask].reset_index(drop=True)
+    if len(notif) > 0:
+        bottom = notif.iloc[0]["top"]
     else:
-        # Getting top coordinate of "PAGINA" as bottom coordinate of the table
-        sp_mms = page_data_df.loc[page_data_df["text"] == "PAGINA".upper()].reset_index(drop=True)
-        bottom = sp_mms.iloc[0]["top"]
+        # Finding sp_mm (Spanish month) to determine bottom coordinate of the table
+        sp_mms = page_data_df.loc[page_data_df["text"] == sp_mm.upper()].reset_index(drop=True)
+
+        if len(sp_mms) > 1:
+            # Getting top coordinate of "DURANGO A ** DE sp_mm DE ****" as bottom coordinate of the table
+            bottom = sp_mms.iloc[1]["top"]
+
+        else:
+            # Getting top coordinate of "PAGINA" as bottom coordinate of the table
+            mask = ["PAGINA".upper() in x for x in page_data_df["text"].values]
+            sp_mms = page_data_df[mask].reset_index(drop=True)
+            bottom = sp_mms.iloc[0]["top"]
 
     # Getting data_df for table
     table_ltrbbox = [page_size_row["left"], no_row["top"], page_size_row["right"], bottom]
-    table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.005])
+    table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.01])
 
     # Get table
     table_df = pp.table_from_data_df(table_df)
-
-
-
-    print(table_df)
-    sys.exit()
-
-    if len(table_df) == 0:
-        return []
-
-
-
-    result = table_df.to_json(orient="values")
+    result = table_df.iloc[1:].to_json(orient="values")
     table_json = json.loads(result)
 
-    # print(table_df)
-    # print(table_json)
-    ...
     # Write data in records
     list_of_records = []
-    # TODO: If "No. Expediente"
-    try:
-        for row_list in table_json:
-            rec = {
-                "C": row_list[1],
-                "D": row_list[2],
-                "E": row_list[3],
-            }
-            rec.update(rec_header)
-            list_of_records.append(rec)
-    except IndexError as _ex:
-        print(f"[ERROR] Write data in records > {_ex}")
-        return []
+    for row_list in table_json:
+        rec = {
+            "C": row_list[1],
+            "D": row_list[2],
+            "E": row_list[3],
+        }
+        rec.update(rec_header)
+        list_of_records.append(rec)
 
     return list_of_records
 
@@ -626,68 +618,76 @@ def parsing_pdf(pdf_path):
 
     # Parsing of all pages
     pdf_recs_list = []
-    doc = convert_from_path(pdf_path)
-    for page_number, page_data in enumerate(doc):
-        if page_number + 1 != 2:
-            continue
+    custom_dpi = 200
+    exit_key = False
+    while not exit_key:
+        try:
+            doc = convert_from_path(pdf_path, dpi=custom_dpi, thread_count=2)
+            for page_number, page_data in enumerate(doc):
+                # if page_number + 1 != 2:
+                #     continue
 
-        # print("\n==================================== Page ====================================\n")
-        rec_list = []
+                # print("\n==================================== Page ====================================\n")
+                rec_list = []
 
-        # Getting page data as DataFrame
-        page_data_df = pp.get_page_data_df(page_data)
+                # Getting page data as DataFrame
+                page_data_df = pp.get_page_data_df(page_data)
 
-        # Choosing relevant parsing script
-        # list_of_doc_types = ["aux1.", "aux2.", "civ2.", ""]
-        # if doc_type in ["aux1.", "aux2."]:
-        if True:
-            # Getting table data as fields A B C D E
-            rec_list = aux(page_data_df)
+                # Choosing relevant parsing script
+                # list_of_doc_types = ["aux1.", "aux2.", "civ2.", ""]
+                # if doc_type in ["aux1.", "aux2."]:
+                if True:
+                    # Getting table data as fields A B C D E
+                    rec_list = aux(page_data_df)
 
-            print(page_data_df)
-            sys.exit()
+                    # Parsing of table data
+                    h = get_materia(doc_type)
+                    for rec_index in range(len(rec_list)):
 
+                        # H // MATERIA and "entidad"
+                        rec_list[rec_index].update(h)
 
-            # Parsing of table data
-            h = get_materia(doc_type)
-            for rec_index in range(len(rec_list)):
+                        # C I // EXPEDIENTE and EXPEDIENTE ORIGEN
+                        parsed_c = parse_field_c(rec_list[rec_index]["C"])
+                        rec_list[rec_index].update(parsed_c)
+                        del rec_list[rec_index]["C"]
 
-                # H // MATERIA and "entidad"
-                rec_list[rec_index].update(h)
+                        # E F G // ACTOR, DEMANDADO and ACUERDOS
+                        parsed_e = parse_field_e(rec_list[rec_index]["E"])
+                        rec_list[rec_index].update(parsed_e)
+                        del rec_list[rec_index]["E"]
 
-                # C I // EXPEDIENTE and EXPEDIENTE ORIGEN
-                parsed_c = parse_field_c(rec_list[rec_index]["C"])
-                rec_list[rec_index].update(parsed_c)
-                del rec_list[rec_index]["C"]
+                        # D I // TIPO and ORGANO JURISDICCIONAL ORIGEN
+                        parsed_d = parse_field_d(rec_list[rec_index]["D"])
+                        rec_list[rec_index].update(parsed_d)
+                        del rec_list[rec_index]["D"]
 
-                # E F G // ACTOR, DEMANDADO and ACUERDOS
-                parsed_e = parse_field_e(rec_list[rec_index]["E"])
-                rec_list[rec_index].update(parsed_e)
-                del rec_list[rec_index]["E"]
+                        # + default records
+                        rec_list[rec_index].update(default_record)
 
-                # D I // TIPO and ORGANO JURISDICCIONAL ORIGEN
-                parsed_d = parse_field_d(rec_list[rec_index]["D"])
-                rec_list[rec_index].update(parsed_d)
-                del rec_list[rec_index]["D"]
+                    # Removing double spaces and set UPPER case
+                    for rec in rec_list:
+                        for key in rec.keys():
+                            if type(rec[key]) == str:
+                                rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
+                        pdf_recs_list.append(rec)
 
-                # + default records
-                rec_list[rec_index].update(default_record)
-
-        # Removing double spaces and set UPPER case
-        for rec in rec_list:
-            for key in rec.keys():
-                if type(rec[key]) == str:
-                    rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
-            pdf_recs_list.append(rec)
+            break
+        except Exception as _ex:
+            custom_dpi += 20
+            print(f"[ERROR] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
+            if custom_dpi > 600:
+                exit_key = True
 
     # Save to json file
-    json_file_path = pdf_path[:-3] + "json"
-    print("Saving to:", json_file_path, end=".... ")
-    with open(json_file_path, "w") as json_file:
-        json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
-    print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
-
-    return None
+    if not exit_key:
+        json_file_path = pdf_path[:-3] + "json"
+        print("Saving to:", json_file_path, end=".... ")
+        with open(json_file_path, "w") as json_file:
+            json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
+        print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
+    else:
+        print("[ERROR] Saving error")
 
 
 # # ===== Start app =================================================================================== Start app =====
@@ -718,32 +718,34 @@ def start_app():
     #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
     # }
 
-    # # Getting values for url_generator
-    # values_for_url = scrape_values_for_urls()
-    #
-    # # Creating urls of files
-    # files_urls = get_files_urls(
-    #     star_date=args['start_date'],
-    #     end_date=args['end_date'],
-    #     values_for_url=values_for_url
-    # )
-    #
-    # # Save file to temporary folder
-    # asyncio.run(save_reports(files_urls))
+    # Getting values for url_generator
+    values_for_url = scrape_values_for_urls()
+
+    # Creating urls of files
+    files_urls = get_files_urls(
+        star_date=args['start_date'],
+        end_date=args['end_date'],
+        values_for_url=values_for_url
+    )
+
+    # Save file to temporary folder
+    asyncio.run(save_reports(files_urls))
 
     # Connect to DB
     # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
 
     # # Parsing pdf files
     # pdf_path = "./temp/capital/2792017_aux1.pdf"
-    # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/lerdo/2792017_Fam3GP.pdf"
-    # dicts = parsing_pdf(pdf_path)
+    # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/2792017_seccc.pdf"
+    # print("\nProcessing:", pdf_path)
+    # parsing_pdf(pdf_path)
 
     all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
     for pdf_path in all_pdf_paths:
         print("\nProcessing:", pdf_path)
-        dicts = parsing_pdf(pdf_path)
-        sys.exit()
+        parsing_pdf(pdf_path)
+        # break
+        # sys.exit()
 
     # Delete temp folder
     # dan.remove_dirs()

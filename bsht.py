@@ -23,11 +23,16 @@ def main():
     # print(sers)
     # sers[3] = 3
     # print(sers)
-    types_dict = {col: "int" for col in ["left", "top", "width", "height", "right", "bottom"]}
+    # types_dict = {col: "int" for col in ["left", "top", "width", "height", "right", "bottom"]}
+    #
+    # print(types_dict)
 
-    print(types_dict)
-
-
+    field_c_string = "10692017 10712017"
+    c_list = [x.strip().split("/") for x in field_c_string.split()]
+    for index in range(len(c_list)):
+        if len(c_list[index]) == 1:
+            c_list[index] = [c_list[index][0][:-4], c_list[index][0][-4:]]
+    print(c_list)
 def anchor_for_navigate():
     pass
 

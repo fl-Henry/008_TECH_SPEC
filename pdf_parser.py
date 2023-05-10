@@ -1,4 +1,3 @@
-# TODO: rewrite as a OOP
 import sys
 
 import pytesseract
@@ -12,12 +11,6 @@ import general_methods as gm
 # # ===== General Methods ======================================================================= General Methods =====
 ...
 # # ===== General Methods ======================================================================= General Methods =====
-
-...
-
-# # ===== Base logic Methods ================================================================= Base logic Methods =====
-...
-# # ===== Base logic Methods ================================================================= Base logic Methods =====
 
 
 def add_margin_to_ltrbbox(ltrbbox, margin):
@@ -148,47 +141,120 @@ def ltrbbox_from_data_df_row(data_df_row):
     return [data_df_row["left"], data_df_row["top"], data_df_row["right"], data_df_row["bottom"]]
 
 
-def find_near_words(ltrbbox, space_px_len, data_df, direction="RL"):
+def find_near_words(ltrbbox, space_px_len, data_df, direction="R"):
     """
 
     :param ltrbbox: list[float]   | [<left_coordinate>, <top_coordinate>, <right_coordinate>, <bottom_coordinate>]
     :param space_px_len: int      | length of space in pixels
     :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
-    :param direction:             | Direction of searching ["R", "L", "RL"]
+    :param direction:             | Direction for searching ["R", "L"]
     :return:
     """
-    if direction.upper() == "L":
-        ltrbbox[0] -= space_px_len
-    elif direction.upper() == "R":
-        ltrbbox[2] += space_px_len
-    else:
-        ltrbbox[0] -= space_px_len
-        ltrbbox[2] += space_px_len
 
+    in_ltrbbox = [*ltrbbox]
+    if "L" in direction.upper():
+        in_ltrbbox[0] = ltrbbox[0] - space_px_len
+    else:
+        in_ltrbbox[2] = ltrbbox[2] + space_px_len
 
     # adding margin for Y direction
-    ltrbbox = add_margin_to_ltrbbox(ltrbbox, margin=[0, 0.05])
+    in_ltrbbox = add_margin_to_ltrbbox(in_ltrbbox, margin=[0, 0.05])
 
     # Searching rows
     df_to_return = pd.DataFrame()
     for index, row in data_df.iterrows():
 
         # Conditions
-        if_left = (row["left"] < ltrbbox[0]) and (row["right"] > ltrbbox[0])
-        if_top = row["top"] > ltrbbox[1]
-        if_right = (row["right"] > ltrbbox[2]) and (row["left"] < ltrbbox[2])
-        if_bottom = row["bottom"] < ltrbbox[3]
-
-        # row_ = row.to_frame().T.reset_index(drop=True)
-        # print(ltrbbox, if_left, if_right)
-        # print(row_)
+        if "L" in direction.upper():
+            if_left = (row["left"] < in_ltrbbox[0]) and (row["right"] > in_ltrbbox[0])
+        else:
+            if_left = False
+        if "R" in direction.upper():
+            if_right = (row["right"] > in_ltrbbox[2]) and (row["left"] < in_ltrbbox[2])
+        else:
+            if_right = False
+        if_top = row["top"] >= in_ltrbbox[1]
+        if_bottom = row["bottom"] <= in_ltrbbox[3]
 
         if if_top and if_bottom:
             if if_left or if_right:
                 row = row.to_frame().T.reset_index(drop=True)
                 df_to_return = pd.concat([df_to_return, row], ignore_index=True)
+                break
 
     return df_to_return
+
+
+def find_all_near_words(df_1, table_data_df, space_px_len, direction="R"):
+    """
+        return df_1 with all words and recalculated left, right, width
+    :param df_1:
+    :param table_data_df:
+    :param space_px_len:
+    :param direction: str   | default "R" | ["R", "L", "LR"]
+    :return:
+    """
+    if "L" in direction.upper():
+        near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
+        row_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="L")
+
+        while len(row_df) > 0:
+            row_df = pd.concat([row_df, df_1], ignore_index=True)
+            df_1 = collapse_all_data_df_rows(row_df)
+            near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
+            row_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="L")
+
+    if "R" in direction.upper():
+        near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
+        row_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="R")
+        while len(row_df) > 0:
+            row_df = pd.concat([df_1, row_df], ignore_index=True)
+            df_1 = collapse_all_data_df_rows(row_df)
+            near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
+            row_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="R")
+
+    return df_1
+
+
+def get_page_data_df(page_data):
+
+    # Page recognition with tesseract
+    data_array = np.array(page_data)
+    page_as_str = pytesseract.image_to_data(data_array)
+    page_as_str = gm.replace_chars(page_as_str)
+
+    # Creating DataFrame from string
+    page_data_array = [list(map(lambda x: x.upper(), j.split("\t"))) for j in [x for x in page_as_str.split("\n")]]
+    page_data_df = pd.DataFrame(
+        page_data_array[1:],
+        columns=[x.lower() for x in page_data_array[0]]
+    )
+    page_data_df.iloc[0]["text"] = "page_size"
+
+    # Drop all None or "" rows
+    in_list = ['', "None", "NONE", None]
+    page_data_df = page_data_df.loc[~page_data_df["text"].isin(in_list)].reset_index(drop=True)
+
+    # Getting right and bottom coordinates for each row and rounding top coordinates
+    page_data_df = get_rb_columns(page_data_df)
+    # TODO: first alignment left coordinates as in get_rb_columns()
+
+    page_data_df = page_data_df.sort_values(by=["top", "left"], ascending=True).reset_index(drop=True)
+
+    return page_data_df
+
+
+# # ===== Table parsing Methods =========================================================== Table parsing Methods =====
+...
+# # ===== Table parsing Methods =========================================================== Table parsing Methods =====
+...
+# TODO:
+#    class Table:
+#       class Cell [ltrbbox, data, type]
+#       def as_dataframe
+#       def as_array
+#
+# TODO: row/column alignment
 
 
 def collapse_all_data_df_rows(data_df):
@@ -219,6 +285,44 @@ def collapse_all_data_df_rows(data_df):
     return df_to_return
 
 
+def get_column_width(col,  space_px_len, table_data_df):
+    left, right, width = col["left"], col["right"], col["width"]
+    for index, row in table_data_df.iterrows():
+        if_left = (row["left"] < left) and (row["right"] > left - space_px_len)
+        if_right = (row["right"] > right) and (row["left"] < right + space_px_len)
+        if_inside = (row["right"] < right) and (row["left"] > left)
+        if_skip = "AMPARO" in row["text"]
+
+        if (if_left or if_right or if_inside) and not if_skip:
+            df_1 = find_all_near_words(row.to_frame().T, table_data_df, space_px_len, direction="RL")
+            if left > df_1.iloc[0]["left"]:
+                left = df_1.iloc[0]["left"]
+            if right < df_1.iloc[0]["right"]:
+                right = df_1.iloc[0]["right"]
+    width = right - left
+    return left, right, width
+
+
+def recalculate_columns_params(columns_df, space_px_len, table_data_df):
+    """
+        Recalculating widths and right coordinates for each column
+    :param columns_df:
+    :param space_px_len:
+    :param table_data_df:
+    :return:
+    """
+    df_to_return = pd.DataFrame()
+    for index, col in columns_df.iterrows():
+        col["left"], col["right"], col["width"] = get_column_width(col, space_px_len, table_data_df)
+        if index < len(columns_df) - 1:
+            if col["right"] > columns_df.iloc[index + 1]["left"]:
+                col["right"] = columns_df.iloc[index + 1]["left"]
+                col["width"] = col["right"] - col["left"]
+        col = col.to_frame().T.reset_index(drop=True)
+        df_to_return = pd.concat([df_to_return, col], ignore_index=True)
+    return df_to_return
+
+
 def find_columns(table_data_df, space_px_len):
 
     # Start ltrbbox for finding first row
@@ -228,8 +332,8 @@ def find_columns(table_data_df, space_px_len):
     max_bottom = max([x for x in table_data_df["bottom"]])
     table_height = max_bottom - min_top
     table_width = max_right - min_left
-    # top_bot_step = table_height * 0.01 // 1
-    top_bot_step = table_data_df["height"].head().sum() // len(table_data_df.head()) // 3
+    # top_bottom_step = table_height * 0.01 // 1
+    top_bottom_step = table_data_df["height"].head().sum() // len(table_data_df.head()) // 3
     left_right_step = table_width * 0.02 // 1
     fr_ltrbbox = [min_left, min_top, min_left, min_top]
 
@@ -237,7 +341,7 @@ def find_columns(table_data_df, space_px_len):
     columns_df = pd.DataFrame()
     # Moving from top to bottom
     while fr_ltrbbox[3] < max_bottom:
-        fr_ltrbbox[3] += top_bot_step
+        fr_ltrbbox[3] += top_bottom_step
         fr_ltrbbox[2] = min_left
 
         # Moving from left to right
@@ -248,16 +352,10 @@ def find_columns(table_data_df, space_px_len):
             # If there is something then find words near
             if len(df_1) > 0:
                 if not len(columns_df) > 0:
-                    fr_ltrbbox[3] += top_bot_step * 2
+                    fr_ltrbbox[3] += top_bottom_step * 2
 
-                # Finding near words
-                near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
-                column_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="R")
-                while len(column_df) > 0:
-                    row_df = pd.concat([df_1, column_df], ignore_index=True)
-                    df_1 = collapse_all_data_df_rows(row_df)
-                    near_words_ltrbbox = ltrbbox_from_data_df_row(df_1.iloc[-1])
-                    column_df = find_near_words(near_words_ltrbbox, space_px_len, table_data_df, direction="R")
+                # Finding all near words
+                df_1 = find_all_near_words(df_1, table_data_df, space_px_len)
 
                 columns_df = pd.concat([columns_df, df_1], ignore_index=True)
                 fr_ltrbbox[0] = columns_df.iloc[-1]["right"]
@@ -266,7 +364,121 @@ def find_columns(table_data_df, space_px_len):
         if len(columns_df) > 0:
             break
 
+    # Recalculating widths and right coordinates for each column
+    columns_df = recalculate_columns_params(columns_df, space_px_len, table_data_df)
+
     return columns_df
+
+
+def recalculate_rows_params(rows_df, table_ltrbbox):
+    """
+        Recalculating heights and bottom coordinates for each row
+    :param rows_df:
+    :param table_ltrbbox:
+    :return:
+    """
+    df_to_return = pd.DataFrame()
+    for index, row in rows_df.iterrows():
+        if index + 1 < len(rows_df):
+            row["bottom"] = rows_df.iloc[index + 1]["top"]
+        else:
+            row["bottom"] = table_ltrbbox[3]
+
+        row["height"] = row["bottom"] - row["top"]
+        row = row.to_frame().T.reset_index(drop=True)
+        df_to_return = pd.concat([df_to_return, row], ignore_index=True)
+
+    return df_to_return
+
+
+def find_rows(table_data_df, space_px_len):
+
+    # Start ltrbbox for finding first column
+    min_left = min([x for x in table_data_df["left"]])
+    min_top = min([x for x in table_data_df["top"]])
+    max_right = max([x for x in table_data_df["right"]])
+    max_bottom = max([x for x in table_data_df["bottom"]])
+    table_height = max_bottom - min_top
+    table_width = max_right - min_left
+    # top_bottom_step = table_height * 0.01 // 1
+    top_bottom_step = table_data_df["height"].head().sum() // len(table_data_df.head()) // 3
+    left_right_step = table_width * 0.02 // 1
+    fr_ltrbbox = [min_left, min_top, min_left, min_top]
+
+    # Searching words inside the increasing box
+    rows_df = pd.DataFrame()
+    # Moving from top to bottom
+    while fr_ltrbbox[3] < max_bottom:
+        fr_ltrbbox[3] += top_bottom_step
+        fr_ltrbbox[2] = min_left
+
+        # Moving from left to right
+        while fr_ltrbbox[2] < max_right:
+            fr_ltrbbox[2] += left_right_step
+            
+            # Checking/getting anything inside the ltrbbox
+            df_1 = get_data_df_inside_ltrbbox(fr_ltrbbox, table_data_df, margin=[0.01, 0.01])
+
+            # If there is something then find words near
+            if len(df_1) > 0:
+
+                # Finding all near words
+                df_1 = find_all_near_words(df_1, table_data_df, space_px_len)
+
+                rows_df = pd.concat([rows_df, df_1], ignore_index=True)
+                fr_ltrbbox[1] = rows_df.iloc[-1]["bottom"]
+                fr_ltrbbox[3] = rows_df.iloc[-1]["bottom"]
+                fr_ltrbbox[2] = rows_df.iloc[-1]["right"]
+
+                # Moving from top to bottom
+                while fr_ltrbbox[3] < max_bottom:
+                    fr_ltrbbox[3] += top_bottom_step
+
+                    # Checking/getting anything inside the ltrbbox and near the ltrbbox
+                    df_1 = get_data_df_inside_ltrbbox(fr_ltrbbox, table_data_df, margin=[0.01, 0.01])
+                    row_df = find_near_words(fr_ltrbbox, space_px_len, table_data_df, direction="R")
+
+                    # If there is anything inside or near the ltrbbox then collapse it and find all near words
+                    if (len(row_df) > 0) or (len(df_1) > 0):
+                        row_df = pd.concat([df_1, row_df], ignore_index=True)
+                        df_1 = collapse_all_data_df_rows(row_df)
+
+                        # Finding all near words
+                        df_1 = find_all_near_words(df_1, table_data_df, space_px_len)
+
+                        rows_df = pd.concat([rows_df, df_1], ignore_index=True)
+                        fr_ltrbbox[1] = rows_df.iloc[-1]["bottom"]
+                break
+
+            else:
+                continue
+
+        if len(rows_df) > 0:
+            break
+
+    # Recalculating heights and bottom coordinates for each row
+    rows_df = recalculate_rows_params(rows_df, [min_left, min_top, max_right, max_bottom])
+
+    return rows_df
+
+
+def get_table_data(columns_df, rows_df, data_df):
+    df_to_return = columns_df["text"].to_frame().T.reset_index(drop=True)
+
+    for row_index, row in rows_df[1:].iterrows():
+        df_row = pd.Series()
+        for col_index, col in columns_df.iterrows():
+            ltrbbox = [col["left"], row["top"], col["right"], row["bottom"]]
+            text = get_text_inside_ltrbbox(ltrbbox, data_df, margin=[0.01, 0.01])
+            if len(text) > 0:
+                text = " ".join(text)
+            else:
+                text = ""
+            df_row[col_index] = text
+        df_row = df_row.to_frame().T
+        df_to_return = pd.concat([df_to_return, df_row], ignore_index=True)
+
+    return df_to_return
 
 
 def table_from_data_df(data_df: pd.DataFrame, margin=None):
@@ -279,310 +491,25 @@ def table_from_data_df(data_df: pd.DataFrame, margin=None):
     if margin is None:
         margin = [0.001, 0.002]
 
-    data_df = data_df.sort_values(by=["top", "left"], ascending=True).reset_index(drop=True)
-
     # Calculating spaces between words
     single_char_indexes = data_df["text"].str.len() == 1
     single_char_df = data_df.loc[single_char_indexes]
-    space_px_len = sum([x for x in single_char_df["width"].head(10)]) / len(single_char_df["width"].head(10)) * 1.3 // 1
+    if len(single_char_df) > 0:
+        space_px_len = sum([x for x in single_char_df["width"].head(10)]) / len(single_char_df["width"].head(10)) * 1.3 // 1
+    else:
+        space_px_len = 15
     space_px_len = int(space_px_len)
 
     # Finding columns
     columns_df = find_columns(data_df, space_px_len)
 
+    # Finding rows
+    rows_df = find_rows(data_df, space_px_len)
 
-    print(columns_df)
-    sys.exit()
+    # Getting data for each cell
+    table_df = get_table_data(columns_df, rows_df, data_df)
 
-    # Calculating widths of columns ===================================================================================
-    ...
-    # # Calculating start tblr_bbox
-    bottom_bbox = [x for x in bbox_to_find]
-    bottom_bbox[1] = float(bbox_to_find[3])
-    right_bbox = [x for x in bbox_to_find]
-    right_bbox[2] = bbox_to_find[0]
-    tblr_bbox = {
-        "top": bbox_to_find,
-        "bottom": bottom_bbox,
-        "left": bbox_to_find,
-        "right": right_bbox,
-    }
-
-    # # Searching tags inside the increasing bbox > bottom border -= 2.5% of top border coordinates; right border += 10%
-    first_row = []
-    # # Moving from top to bottom
-    while bottom_bbox[1] > 0:
-        bottom_bbox[1] -= bbox_to_find[3] * 0.025
-        tblr_bbox.update({"bottom": bottom_bbox})
-        # # # Moving from left to right
-        while right_bbox[2] < bbox_to_find[2]:
-            right_bbox[2] += bbox_to_find[2] * 0.1
-            tblr_bbox.update({"right": right_bbox})
-            bbox_to_find_first_row = tblr_to_bbox(tblr_bbox, margin=0.01)
-            item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_row)
-            # # # # If there is any tag > append first_row
-            if len(item_tags) > 0:
-                for item in item_tags:
-                    first_row.append(item)
-                left_bbox = get_bbox(0, first_row[-1])
-                left_bbox = [left_bbox[2], 0, 0, 0]
-                tblr_bbox.update({"left": left_bbox})
-        if len(first_row) > 0:
-            break
-        # # # Reset the right position (start position)
-        right_bbox[2] = bbox_to_find[0]
-
-    if len(first_row) == 0:
-        print("\nfirst_row == []")
-        return []
-
-    # Unpack tags
-    for item_index in range(len(first_row)):
-        first_row[item_index] = unpack_tags(first_row[item_index])
-
-    # Calculating width of columns
-    ...
-    # # Generate column parameters and place them in a list
-    list_of_col_params = []
-    for column_tag in first_row:
-        col_header_bbox = get_bbox(0, column_tag)
-        col_header_width = col_header_bbox[2] - col_header_bbox[0]
-        col_middle_coord = col_header_bbox[0] + (col_header_width / 2)
-        col_params = {
-                "left": col_header_bbox[0],
-                "right": col_header_bbox[2],
-                "middle": col_middle_coord,
-                "width": col_header_width,
-                "header_bbox": col_header_bbox,
-            }
-        list_of_col_params.append(col_params)
-
-    # # Finding the smaller left coordinate and the larger right coordinate
-    for col_params, col_index in zip(list_of_col_params, range(len(list_of_col_params))):
-        char_index = 0
-
-        # # # Find bbox and associated tag
-        while char_index <= len(xml_text) - 3:
-            if xml_text[char_index:char_index + 4] == "bbox":
-                tag = get_tag_by_attr_position(char_index, xml_text)
-
-                # if tag is parent tag then skip
-                if tag[-1] == "1":
-                    char_index += 1
-                    continue
-                bbox = get_bbox(char_index, xml_text)
-
-                # If middle coordinate inside bbox width
-                if (bbox[0] < col_params["middle"]) and (bbox[2] > col_params["middle"]):
-
-                    # If not first column
-                    if col_index > 0:
-
-                        # If left border coordinate of the bbox is less than current > replace
-                        if (
-                                (col_params["left"] > bbox[0]) and
-                                check_nesting(bbox, bbox_to_find) and
-                                (list_of_col_params[col_index - 1]["middle"] < bbox[0])
-                        ):
-                            col_params.update({"left": bbox[0]})
-
-                    # If first column
-                    else:
-
-                        # If left border coordinate of the bbox is less than current > replace
-                        if (col_params["left"] > bbox[0]) and check_nesting(bbox, bbox_to_find):
-                            col_params.update({"left": bbox[0]})
-
-                    # If not last column
-                    if col_index < len(list_of_col_params) - 1:
-
-                        # If right border coordinate of the bbox is greater than current > replace
-                        if (
-                                (col_params["right"] < bbox[2]) and
-                                check_nesting(bbox, bbox_to_find) and
-                                (list_of_col_params[col_index + 1]["middle"] > bbox[2])
-                        ):
-                            col_params.update({"right": bbox[2]})
-
-                    # If last column
-                    else:
-
-                        # If left border coordinate of the bbox is less than current > replace
-                        if (col_params["right"] < bbox[2]) and check_nesting(bbox, bbox_to_find):
-                            col_params.update({"right": bbox[2]})
-
-            char_index += 1
-
-        # # #Rewrite column parameters
-        col_width = col_params["right"] - col_params["left"]
-        col_header_bbox = (
-            col_params["left"],
-            col_params["header_bbox"][1],
-            col_params["right"],
-            col_params["header_bbox"][3]
-        )
-        col_params.update(
-            {
-                "width": col_width,
-                "header_bbox": col_header_bbox,
-            }
-        )
-        list_of_col_params[col_index].update(col_params)
-
-    # TODO: parse lost text ???
-    ...
-    # TODO: row/column alignment
-    ...
-
-    # Calculating heights of rows =====================================================================================
-    ...
-    # # Calculating bbox for find
-    right_bbox = [x for x in list_of_col_params[0]["header_bbox"]]
-    top_bbox = [x for x in list_of_col_params[0]["header_bbox"]]
-    top_bbox[3] = top_bbox[1]
-    bottom_bbox = [x for x in bbox_to_find]
-    bottom_bbox[1] = float(top_bbox[1])
-    left_bbox = [x for x in bbox_to_find]
-    tblr_bbox = {
-        "top": top_bbox,
-        "bottom": bottom_bbox,
-        "left": left_bbox,
-        "right": right_bbox,
-    }
-
-    # # Searching tags inside the increasing bbox > bottom border -= 2.5% of top border coordinates
-    first_col = []
-    # # # Moving from top to bottom
-    while bottom_bbox[1] > 0:
-        bottom_bbox[1] -= bbox_to_find[3] * 0.015
-        tblr_bbox.update({"bottom": bottom_bbox})
-        bbox_to_find_first_col = tblr_to_bbox(tblr_bbox)
-        item_tags = tags_inside_bbox(xml_text, bbox_to_find_first_col)
-        # If there is any tag > append first_col
-        if len(item_tags) > 0:
-            for item in item_tags:
-                first_col.append(item)
-            top_bbox = get_bbox(0, first_col[-1])
-            top_bbox = [0, 0, 0, top_bbox[1]]
-            tblr_bbox.update({"top": top_bbox})
-
-    if len(first_col) == 0:
-        print("\nfirst_col == []")
-        return []
-
-    # Calculating heights of rows
-    ...
-    # # Generate rows parameters and place them in a list
-    list_of_row_params = []
-    for row_tag in first_col:
-        row_header_bbox = get_bbox(0, row_tag)
-        row_header_height = row_header_bbox[3] - row_header_bbox[1]
-        row_middle_coord = row_header_bbox[1] + (row_header_height / 2)
-        row_params = {
-            "bottom": row_header_bbox[1],
-            "top": row_header_bbox[3],
-            "middle": row_middle_coord,
-            "height": row_header_height,
-            "header_bbox": row_header_bbox,
-        }
-        list_of_row_params.append(row_params)
-
-    for row_param, row_index in zip(list_of_row_params, range(len(list_of_row_params))):
-        if row_index < len(list_of_row_params) - 1:
-            row_header_bottom = list_of_row_params[row_index + 1]["top"]
-        else:
-            row_header_bottom = bbox_to_find[1]
-        row_header_height = row_param['top'] - row_header_bottom
-        row_middle_coord = row_header_bottom + (row_header_height / 2)
-        row_header_bbox = [
-            row_param['header_bbox'][0],
-            row_header_bottom,
-            row_param['header_bbox'][2],
-            row_param['header_bbox'][3]
-        ]
-        row_params = {
-            "bottom": row_header_bbox[1],
-            "middle": row_middle_coord,
-            "height": row_header_height,
-            "header_bbox": row_header_bbox,
-        }
-        list_of_row_params[row_index].update(row_params)
-
-    # Getting table data ==============================================================================================
-    table_data = [get_tag_text(x)[:-1] for x in first_row]
-    table_data = [table_data]
-    for row_params in list_of_row_params:
-        row_items = []
-        for column_params in list_of_col_params:
-            top = row_params["top"]
-            bottom = row_params["bottom"]
-            left = column_params["left"]
-            right = column_params["right"]
-            tblr = {
-                "left": left,
-                "bottom": bottom,
-                "right": right,
-                "top": top,
-            }
-            bbox_to_find_item = tblr_to_bbox(tblr, margin_x=margin_x, margin_y=margin_y)
-            tags = tags_inside_bbox(xml_text, bbox_to_find_item)
-
-            # if tag is parent tag then skip
-            item_string = ""
-            for tag in tags:
-                # if tag[-1] == "1":
-                #     tag = unpack_tags(tag)
-                item_string += get_tag_text(tag)[:-1]
-
-            # # For debugging
-            # if len(table_data) == 14:
-            #     print("row:", len(table_data))
-            #     print("col:", len(row_items))
-            #     print("bbox_to_find_item:", bbox_to_find_item)
-            #     print("item_string:", item_string)
-            #     print(tags)
-            #     print()
-
-            row_items.append(item_string)
-
-        table_data.append(row_items)
-
-    # Create dataframe
-    output_df = pd.DataFrame(
-        table_data[1:],
-        columns=table_data[0]
-    )
-
-    return output_df
-
-
-
-
-
-
-def get_page_data_df(page_data):
-
-    # Page recognition with tesseract
-    data_array = np.array(page_data)
-    page_as_str = pytesseract.image_to_data(data_array)
-    page_as_str = gm.replace_chars(page_as_str)
-
-    # Creating DataFrame from string
-    page_data_array = [list(map(lambda x: x.upper(), j.split("\t"))) for j in [x for x in page_as_str.split("\n")]]
-    page_data_df = pd.DataFrame(
-        page_data_array[1:],
-        columns=[x.lower() for x in page_data_array[0]]
-    )
-    page_data_df.iloc[0]["text"] = "page_size"
-
-    # Drop all None or "" rows
-    in_list = ['', "None", "NONE", None]
-    page_data_df = page_data_df.loc[~page_data_df["text"].isin(in_list)].reset_index(drop=True)
-
-    # Getting right and bottom coordinates for each row and rounding top coordinates
-    page_data_df = get_rb_columns(page_data_df)
-
-    return page_data_df
+    return table_df
 
 
 def main():
@@ -590,5 +517,4 @@ def main():
 
 
 if __name__ == '__main__':
-
     main()
