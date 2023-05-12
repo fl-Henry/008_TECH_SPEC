@@ -507,7 +507,8 @@ def parse_header(page_data_df):
     page_size_row = page_data_df.iloc[0]
 
     # Getting text inside header_ltrbbox
-    header_ltrbbox = [page_size_row["left"], page_size_row["top"], page_size_row["right"], no_row["bottom"]]
+    header_ltrbbox = [page_size_row["right"] * 0.2, page_size_row["top"], page_size_row["right"], no_row["bottom"]]
+
     header_text_list = pp.get_text_inside_ltrbbox(header_ltrbbox, page_data_df)
 
     # Separate text by "Dictados el dia"
@@ -575,22 +576,14 @@ def aux(page_data_df):
             sp_mms = page_data_df[mask].reset_index(drop=True)
             bottom = sp_mms.iloc[0]["top"]
 
-
     # Getting data_df for table
     table_ltrbbox = [page_size_row["left"], no_row["top"], page_size_row["right"], bottom]
     table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.01])
-
-    pd.set_option("display.max_rows", None)
-    # print(table_df)
 
     # Get table
     table_df = pp.table_from_data_df(table_df)
     result = table_df.iloc[1:].to_json(orient="values")
     table_json = json.loads(result)
-
-    print()
-    print(table_df)
-
 
     # Write data in records
     list_of_records = []
@@ -653,7 +646,7 @@ def parsing_pdf(pdf_path):
         try:
             doc = convert_from_path(pdf_path, dpi=custom_dpi, thread_count=2)
             for page_number, page_data in enumerate(doc):
-                # if page_number + 1 != 2:
+                # if page_number + 1 != 1:
                 #     continue
 
                 # print("\n==================================== Page ====================================\n")
@@ -706,7 +699,7 @@ def parsing_pdf(pdf_path):
             break
         except Exception as _ex:
             custom_dpi += 20
-            print(f"[ERROR] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
+            print(f"[WARNING] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
             if custom_dpi > 400:
                 exit_key = True
 
@@ -749,34 +742,32 @@ def start_app():
     #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
     # }
 
-    # # Getting values for url_generator
-    # values_for_url = scrape_values_for_urls()
-    #
-    # # Creating urls of files
-    # files_urls = get_files_urls(
-    #     star_date=args['start_date'],
-    #     end_date=args['end_date'],
-    #     values_for_url=values_for_url
-    # )
-    #
-    # # Save file to temporary folder
-    # asyncio.run(save_reports(files_urls))
+    # Getting values for url_generator
+    values_for_url = scrape_values_for_urls()
+
+    # Creating urls of files
+    files_urls = get_files_urls(
+        star_date=args['start_date'],
+        end_date=args['end_date'],
+        values_for_url=values_for_url
+    )
+
+    # Save file to temporary folder
+    asyncio.run(save_reports(files_urls))
 
     # Connect to DB
     # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
 
-    # Parsing pdf files
-    pdf_path = "./temp/capital/2792017_aux1.pdf"
-    pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/2152019_seccc.pdf"
-    print("\nProcessing:", pdf_path)
-    parsing_pdf(pdf_path)
-    #
-    # all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
-    # for pdf_path in all_pdf_paths:
-    #     print("\nProcessing:", pdf_path)
-    #     parsing_pdf(pdf_path)
-    #     break
-        # sys.exit()
+    # # Parsing pdf files
+    # pdf_path = "./temp/capital/2792017_aux1.pdf"
+    # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/2152019_seccc.pdf"
+    # print("\nProcessing:", pdf_path)
+    # parsing_pdf(pdf_path)
+
+    all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
+    for pdf_path in all_pdf_paths:
+        print("\nProcessing:", pdf_path)
+        parsing_pdf(pdf_path)
 
     # Delete temp folder
     # dan.remove_dirs()

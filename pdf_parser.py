@@ -111,7 +111,7 @@ def get_rb_columns(page_data_df):
     :param page_data_df:
     :return:
     """
-    # Get names of columns
+    # Creating names of columns list
     start_columns_names = page_data_df.columns
     columns_names = []
     for col in start_columns_names:
@@ -120,17 +120,51 @@ def get_rb_columns(page_data_df):
         else:
             columns_names.append(col)
 
-    # Calculating right and bottom coordinates
-    df_to_return = pd.DataFrame([], columns=columns_names)
-    rounding_value = min([int(x) for x in page_data_df.head()["height"]]) // 5 * 3
-    for index, row in page_data_df.iterrows():
-        row["right"] = int(row["left"]) + int(row["width"])
-        # row["top"] = int(row["top"] // rounding_value * rounding_value)
-        row["top"] = round(round(int(row["top"]) / rounding_value) * rounding_value)
+    # Changing type of some columns
+    types_dict = {col: "int32" for col in ["left", "top", "width", "height"]}
+    page_data_df = page_data_df.astype(types_dict)
 
-        row["bottom"] = int(row["top"]) + int(row["height"])
+    page_data_df = page_data_df.sort_values(by=["top"], ascending=True).reset_index(drop=True)
+
+    # rows bottom coordinates list // to round bottom coordinates and create a readable file structure
+    bottom_list = [0]
+
+    # average height of rows/words
+    avg_height = sum([int(x) for x in page_data_df.tail(20)["height"]]) // len(page_data_df.tail(20)["height"])
+    avg_height = avg_height * 1.2 // 2  # to comparison // 1.2 for include space between rows
+
+    # Calculating bottom coordinates, adding to bottom_list or rounding by near coordinate
+    page_row = pd.Series(page_data_df.iloc[0])
+    page_row["right"] = int(page_row["left"]) + int(page_row["width"])
+    page_row["bottom"] = int(page_row["top"]) + int(page_row["height"])
+    df_to_return = pd.DataFrame([], columns=columns_names)
+    for index, row in page_data_df.iterrows():
+        if index == 0:
+            continue
+        row["right"] = int(row["left"]) + int(row["width"])
+        bottom = int(row["top"]) + int(row["height"])
+
+        # If newline then append bottom_list
+        if bottom > bottom_list[-1] + avg_height:
+            bottom_list.append(bottom)
+
+        # Rounding bottom coordinate
+        else:
+            check_key = False
+            for row_index in range(1, len(bottom_list)):
+                if bottom_list[-row_index] + avg_height >= bottom > bottom_list[-(row_index + 1)] + avg_height:
+                    bottom = bottom_list[-row_index]
+                    check_key = True
+                    break
+            if not check_key:
+                raise Exception(f"[ERROR] Rounding bottom coordinate > {check_key} > Rounding failed")
+
+        row["bottom"] = bottom
         row = row.to_frame().T.reset_index(drop=True)
         df_to_return = pd.concat([df_to_return, row], ignore_index=True)
+
+    df_to_return = df_to_return.sort_values(by=["bottom", "left"], ascending=True).reset_index(drop=True)
+    df_to_return = pd.concat([page_row.to_frame().T, df_to_return], ignore_index=True)
 
     # Changing type of some columns
     types_dict = {col: "int32" for col in ["left", "top", "width", "height", "right", "bottom"]}
@@ -234,14 +268,11 @@ def get_page_data_df(page_data):
     page_data_df.iloc[0]["text"] = "page_size"
 
     # Drop all None or "" rows
-    in_list = ['', "None", "NONE", None]
+    in_list = ['', "None", "NONE", None, " "]
     page_data_df = page_data_df.loc[~page_data_df["text"].isin(in_list)].reset_index(drop=True)
 
-    # Getting right and bottom coordinates for each row and rounding top coordinates
+    # Getting right and bottom coordinates for each row and rounding bottom coordinates
     page_data_df = get_rb_columns(page_data_df)
-    # TODO: first alignment left coordinates as in get_rb_columns()
-
-    page_data_df = page_data_df.sort_values(by=["top", "left"], ascending=True).reset_index(drop=True)
 
     return page_data_df
 

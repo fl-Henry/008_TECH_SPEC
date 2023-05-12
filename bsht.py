@@ -62,12 +62,8 @@ def main():
     #     print(res)
     #     print()
 
-    value = 42
-    rounding_value = 12
-    print(int(value) / rounding_value * rounding_value)
-    value = round(round(int(value) / rounding_value) * rounding_value)
-    print(value)
-
+    for x in range(0, 8):
+        print(-x)
 
 def anchor_for_navigate():
     pass
