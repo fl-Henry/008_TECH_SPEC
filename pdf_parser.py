@@ -122,10 +122,12 @@ def get_rb_columns(page_data_df):
 
     # Calculating right and bottom coordinates
     df_to_return = pd.DataFrame([], columns=columns_names)
-    rounding_value = min([int(x) for x in page_data_df.head()["height"]]) // 5 * 2
+    rounding_value = min([int(x) for x in page_data_df.head()["height"]]) // 5 * 3
     for index, row in page_data_df.iterrows():
         row["right"] = int(row["left"]) + int(row["width"])
-        row["top"] = int(row["top"]) // rounding_value * rounding_value
+        # row["top"] = int(row["top"] // rounding_value * rounding_value)
+        row["top"] = round(round(int(row["top"]) / rounding_value) * rounding_value)
+
         row["bottom"] = int(row["top"]) + int(row["height"])
         row = row.to_frame().T.reset_index(drop=True)
         df_to_return = pd.concat([df_to_return, row], ignore_index=True)
@@ -311,7 +313,7 @@ def recalculate_columns_params(columns_df, space_px_len, table_data_df):
     :param table_data_df:
     :return:
     """
-    df_to_return = pd.DataFrame()
+    df_1 = pd.DataFrame()
     for index, col in columns_df.iterrows():
         col["left"], col["right"], col["width"] = get_column_width(col, space_px_len, table_data_df)
         if index < len(columns_df) - 1:
@@ -319,7 +321,18 @@ def recalculate_columns_params(columns_df, space_px_len, table_data_df):
                 col["right"] = columns_df.iloc[index + 1]["left"]
                 col["width"] = col["right"] - col["left"]
         col = col.to_frame().T.reset_index(drop=True)
-        df_to_return = pd.concat([df_to_return, col], ignore_index=True)
+        df_1 = pd.concat([df_1, col], ignore_index=True)
+
+    df_to_return = pd.DataFrame()
+    df_to_return = pd.concat([df_to_return, df_1.iloc[0].to_frame().T.reset_index(drop=True)], ignore_index=True)
+    for index, col in df_1.iterrows():
+        if index < len(df_1) - 1:
+            if col["right"] > df_1.iloc[index + 1]["left"]:
+                df_1.iloc[index + 1]["left"] = col["right"]
+                df_1.iloc[index + 1]["width"] = df_1.iloc[index + 1]["right"] - df_1.iloc[index + 1]["left"]
+            col_next = df_1.iloc[index + 1].to_frame().T.reset_index(drop=True)
+            df_to_return = pd.concat([df_to_return, col_next], ignore_index=True)
+
     return df_to_return
 
 
@@ -370,13 +383,29 @@ def find_columns(table_data_df, space_px_len):
     return columns_df
 
 
-def recalculate_rows_params(rows_df, table_ltrbbox):
+def get_row_top(top, table_data_df):
+    for index, row in table_data_df.iterrows():
+        if float(row["top"]) <= top <= float(row["bottom"]):
+            top = float(row["top"])
+    return top
+
+
+def recalculate_rows_params(rows_df, table_ltrbbox, table_data_df):
     """
         Recalculating heights and bottom coordinates for each row
     :param rows_df:
     :param table_ltrbbox:
+    :param table_data_df:
     :return:
     """
+
+    df_to_find_top = pd.DataFrame()
+    for index, row in rows_df.iterrows():
+        row["top"] = get_row_top(row["top"], table_data_df)
+        row = row.to_frame().T.reset_index(drop=True)
+        df_to_find_top = pd.concat([df_to_find_top, row], ignore_index=True)
+
+    rows_df = df_to_find_top
     df_to_return = pd.DataFrame()
     for index, row in rows_df.iterrows():
         if index + 1 < len(rows_df):
@@ -457,7 +486,7 @@ def find_rows(table_data_df, space_px_len):
             break
 
     # Recalculating heights and bottom coordinates for each row
-    rows_df = recalculate_rows_params(rows_df, [min_left, min_top, max_right, max_bottom])
+    rows_df = recalculate_rows_params(rows_df, [min_left, min_top, max_right, max_bottom], table_data_df)
 
     return rows_df
 
@@ -469,7 +498,7 @@ def get_table_data(columns_df, rows_df, data_df):
         df_row = pd.Series()
         for col_index, col in columns_df.iterrows():
             ltrbbox = [col["left"], row["top"], col["right"], row["bottom"]]
-            text = get_text_inside_ltrbbox(ltrbbox, data_df, margin=[0.01, 0.01])
+            text = get_text_inside_ltrbbox(ltrbbox, data_df, margin=[0.02, 0.02])
             if len(text) > 0:
                 text = " ".join(text)
             else:
@@ -481,23 +510,20 @@ def get_table_data(columns_df, rows_df, data_df):
     return df_to_return
 
 
-def table_from_data_df(data_df: pd.DataFrame, margin=None):
+def table_from_data_df(data_df: pd.DataFrame):
     """
 
     :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
     :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
     :return:
     """
-    if margin is None:
-        margin = [0.001, 0.002]
-
     # Calculating spaces between words
     single_char_indexes = data_df["text"].str.len() == 1
     single_char_df = data_df.loc[single_char_indexes]
     if len(single_char_df) > 0:
         space_px_len = sum([x for x in single_char_df["width"].head(10)]) / len(single_char_df["width"].head(10)) * 1.3 // 1
     else:
-        space_px_len = 15
+        space_px_len = data_df["width"].head(1)[0] // len(data_df["text"].head(1)[0])
     space_px_len = int(space_px_len)
 
     # Finding columns

@@ -17,6 +17,29 @@ import pdf_parser as pp
 import general_methods as gm
 
 
+
+def replace_wrong_recognitions(in_str):
+    replace_dict = {
+        "‘TER.": "1ER.",
+        "TER.": "1ER.",
+        "‘ER.": "1ER.",
+    }
+    result_str = in_str
+    for key in replace_dict.keys():
+        result_str = ""
+        last_char = 0
+        for char_counter in range(len(in_str) - len(key)):
+            if_in = in_str[char_counter:char_counter + len(key)].upper() in [*replace_dict.keys()]
+            if if_in:
+                result_str += in_str[last_char:char_counter] + replace_dict[key]
+                last_char = char_counter + len(key)
+        result_str += in_str[last_char:]
+        in_str = result_str
+
+    return result_str
+
+
+
 def main():
     pass
     # sers = pd.Series([0, 1, 2])
@@ -27,12 +50,25 @@ def main():
     #
     # print(types_dict)
 
-    field_c_string = "10692017 10712017"
-    c_list = [x.strip().split("/") for x in field_c_string.split()]
-    for index in range(len(c_list)):
-        if len(c_list[index]) == 1:
-            c_list[index] = [c_list[index][0][:-4], c_list[index][0][-4:]]
-    print(c_list)
+    # str_s = [
+    #     "TERCERO DE LO CIVIL ‘ER. DISTRITO JUDICIAL ORD...",
+    #     "SEGUNDO DELO FAMILIAR TER. DISTRITO JUDICIAL C...",
+    #     "TERCERO DE LO CIVIL ‘TER. DISTRITO JUDICIAL OR..."
+    # ]
+    #
+    # for str_ in str_s:
+    #     res = replace_wrong_recognitions(str_)
+    #     print(str_)
+    #     print(res)
+    #     print()
+
+    value = 42
+    rounding_value = 12
+    print(int(value) / rounding_value * rounding_value)
+    value = round(round(int(value) / rounding_value) * rounding_value)
+    print(value)
+
+
 def anchor_for_navigate():
     pass
 

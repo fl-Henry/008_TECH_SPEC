@@ -121,6 +121,27 @@ def get_all_files_by_extension(dir_to_find: str, extension: str):
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 
 
+def replace_wrong_recognitions(in_str):
+    replace_dict = {
+        "‘TER.": "1ER.",
+        "TER.": "1ER.",
+        "‘ER.": "1ER.",
+    }
+    result_str = in_str
+    for key in replace_dict.keys():
+        result_str = ""
+        last_char = 0
+        for char_counter in range(len(in_str) - len(key)):
+            if_in = in_str[char_counter:char_counter + len(key)].upper() in [*replace_dict.keys()]
+            if if_in:
+                result_str += in_str[last_char:char_counter] + replace_dict[key]
+                last_char = char_counter + len(key)
+        result_str += in_str[last_char:]
+        in_str = result_str
+
+    return result_str
+
+
 def url_generator(date_: tuple[int, int, int], der):
     """
 
@@ -535,11 +556,11 @@ def aux(page_data_df):
     # Parsing of table
     ...
 
-    # Getting top coordinate of "NOTIFICACION" as bottom coordinate of the table
-    mask = ["NOTIFICACION".upper() in x for x in page_data_df["text"].values]
-    notif = page_data_df[mask].reset_index(drop=True)
-    if len(notif) > 0:
-        bottom = notif.iloc[0]["top"]
+    # Getting top coordinate of "CORRESPONDIENTES" as bottom coordinate of the table
+    mask = ["CORRESPONDIENTES".upper() in x for x in page_data_df["text"].values]
+    corresp = page_data_df[mask].reset_index(drop=True)
+    if len(corresp) > 0:
+        bottom = corresp.iloc[0]["top"]
     else:
         # Finding sp_mm (Spanish month) to determine bottom coordinate of the table
         sp_mms = page_data_df.loc[page_data_df["text"] == sp_mm.upper()].reset_index(drop=True)
@@ -554,14 +575,22 @@ def aux(page_data_df):
             sp_mms = page_data_df[mask].reset_index(drop=True)
             bottom = sp_mms.iloc[0]["top"]
 
+
     # Getting data_df for table
     table_ltrbbox = [page_size_row["left"], no_row["top"], page_size_row["right"], bottom]
     table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.01])
+
+    pd.set_option("display.max_rows", None)
+    # print(table_df)
 
     # Get table
     table_df = pp.table_from_data_df(table_df)
     result = table_df.iloc[1:].to_json(orient="values")
     table_json = json.loads(result)
+
+    print()
+    print(table_df)
+
 
     # Write data in records
     list_of_records = []
@@ -618,7 +647,7 @@ def parsing_pdf(pdf_path):
 
     # Parsing of all pages
     pdf_recs_list = []
-    custom_dpi = 200
+    custom_dpi = 320
     exit_key = False
     while not exit_key:
         try:
@@ -670,13 +699,15 @@ def parsing_pdf(pdf_path):
                         for key in rec.keys():
                             if type(rec[key]) == str:
                                 rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
+                                rec.update({key: replace_wrong_recognitions(rec[key])})
+
                         pdf_recs_list.append(rec)
 
             break
         except Exception as _ex:
             custom_dpi += 20
             print(f"[ERROR] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
-            if custom_dpi > 600:
+            if custom_dpi > 400:
                 exit_key = True
 
     # Save to json file
@@ -718,33 +749,33 @@ def start_app():
     #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
     # }
 
-    # Getting values for url_generator
-    values_for_url = scrape_values_for_urls()
-
-    # Creating urls of files
-    files_urls = get_files_urls(
-        star_date=args['start_date'],
-        end_date=args['end_date'],
-        values_for_url=values_for_url
-    )
-
-    # Save file to temporary folder
-    asyncio.run(save_reports(files_urls))
+    # # Getting values for url_generator
+    # values_for_url = scrape_values_for_urls()
+    #
+    # # Creating urls of files
+    # files_urls = get_files_urls(
+    #     star_date=args['start_date'],
+    #     end_date=args['end_date'],
+    #     values_for_url=values_for_url
+    # )
+    #
+    # # Save file to temporary folder
+    # asyncio.run(save_reports(files_urls))
 
     # Connect to DB
     # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
 
-    # # Parsing pdf files
-    # pdf_path = "./temp/capital/2792017_aux1.pdf"
-    # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/2792017_seccc.pdf"
-    # print("\nProcessing:", pdf_path)
-    # parsing_pdf(pdf_path)
-
-    all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
-    for pdf_path in all_pdf_paths:
-        print("\nProcessing:", pdf_path)
-        parsing_pdf(pdf_path)
-        # break
+    # Parsing pdf files
+    pdf_path = "./temp/capital/2792017_aux1.pdf"
+    pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/2152019_seccc.pdf"
+    print("\nProcessing:", pdf_path)
+    parsing_pdf(pdf_path)
+    #
+    # all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
+    # for pdf_path in all_pdf_paths:
+    #     print("\nProcessing:", pdf_path)
+    #     parsing_pdf(pdf_path)
+    #     break
         # sys.exit()
 
     # Delete temp folder
