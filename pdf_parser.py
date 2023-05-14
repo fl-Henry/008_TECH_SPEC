@@ -252,11 +252,14 @@ def find_all_near_words(df_1, table_data_df, space_px_len, direction="R"):
     return df_1
 
 
-def get_page_data_df(page_data):
+def get_page_data_df(page_data, tesseract_config=None):
 
     # Page recognition with tesseract
     data_array = np.array(page_data)
-    page_as_str = pytesseract.image_to_data(data_array)
+    if tesseract_config is None:
+        page_as_str = pytesseract.image_to_data(data_array)
+    else:
+        page_as_str = pytesseract.image_to_data(data_array, config=tesseract_config)
     page_as_str = gm.replace_chars(page_as_str)
 
     # Creating DataFrame from string

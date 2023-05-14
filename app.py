@@ -7,13 +7,16 @@ import aiohttp
 import aiofiles
 import argparse
 import requests
+import cv2 as cv
 import numpy as np
 import pandas as pd
+
 
 # sudo apt-get install gnupg
 # echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
 # sudo apt-get update
 # sudo apt-get install -y mongodb-org
+# sudo systemctl start mongod
 import pymongo
 
 # sudo apt-get install tesseract-ocr
@@ -21,7 +24,6 @@ import pytesseract
 
 # sudo apt-get install poppler-utils
 from pdf2image import convert_from_path
-
 
 from aiohttp_retry import RetryClient, ExponentialRetry
 from datetime import datetime, timedelta, date
@@ -37,6 +39,7 @@ import pdf_parser as pp
 import general_methods as gm
 
 from print_tags import Tags
+from mongodb_handler import MongodbHandler
 
 
 # # ===== General Variables =================================================================== General Variables =====
@@ -165,6 +168,24 @@ def url_generator(date_: tuple[int, int, int], der):
 
 
 def scrape_values_for_urls():
+
+    # URLs and selectors used in the application
+    # urls = [
+    #     "http://tsjdgo.gob.mx/Recursos/ListasDeAcuerdos.html#",
+    # ]
+    # css_selectors = {
+    #     1: "#contenedor1",                   # button with text De la capital
+    #     2: "#contenedor2",                   # button with text Gómez Palacio y Lerdo
+    #     3: "#contenedor3",                   # button with text Juzgados foraneos
+    #     4: "#panel-oculto",                  # block after clicking button with text De la capital
+    #     5: "#panel-oculto2",                 # block after clicking button with text Gómez Palacio y Lerdo
+    #     6: "#panel-oculto1",                 # block after clicking button with text Juzgados foraneos
+    #     7: "input.der",                      # radio_buttons
+    #     8: "#panel-oculto input.der",        # radio_buttons for De la capital
+    #     9: "#panel-oculto2 input.der",       # radio_buttons for Gómez Palacio y Lerdo
+    #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
+    # }
+
     urls = [
         "http://tsjdgo.gob.mx/Recursos/ListasDeAcuerdos.html#",
     ]
@@ -227,6 +248,18 @@ async def save_reports(files_urls):
                     tasks.append(task)
 
         await asyncio.gather(*tasks)
+
+
+def add_records_to_db(records_list):
+    mdbh = MongodbHandler(host="mongodb://localhost:27017/", db_name="raw", collection_name="juzgados")
+    mdbh.collection.insert_many(records_list)
+    mdbh.db_client.close()
+
+
+def delete_all_duplicates():
+    mdbh = MongodbHandler(host="mongodb://localhost:27017/", db_name="raw", collection_name="juzgados")
+    mdbh.delete_duplicates(["actor", "demandado", "juzgado", "expediente", "materia", "fecha"])
+    mdbh.db_client.close()
 
 
 # # ===== Parsing Methods ======================================================================= Parsing Methods =====
@@ -450,7 +483,7 @@ def parse_field_e(e_field_string):
         g_field = ""
 
     # E = "<-- Vs"  //  F = "Vs -->"
-    vs_location = gm.find_string_indexes(e_field_string, "Vs")
+    vs_location = gm.find_string_indexes(e_field_string.upper(), "Vs".upper())
     if vs_location is not None:
         e_field = e_field_string[:vs_location[0]]
         f_field = e_field_string[vs_location[0] + 3:]
@@ -501,7 +534,12 @@ def parse_header(page_data_df):
     rec_header = {}
 
     # Getting "No." row for bottom coordinate
+    # pd.set_option("display.max_rows", None)
+    # print(page_data_df)
+    # try:
     no_row = page_data_df.loc[page_data_df["text"] == "No.".upper()].reset_index(drop=True).iloc[0]
+    # except IndexError:
+    #     no_row = page_data_df.loc[page_data_df["text"] == "EXPEDIENTE".upper()].reset_index(drop=True).iloc[0]
 
     # Getting page_size_row for top, left and right coordinates
     page_size_row = page_data_df.iloc[0]
@@ -637,12 +675,15 @@ def parsing_pdf(pdf_path):
     # Doc type // part of filename
     file_name = gm.url_to_name(pdf_path)
     doc_type = file_name[gm.find_char_index(file_name, "_") + 1:gm.find_char_index(file_name, ".") + 1]
+    doc_index = file_name[:gm.find_char_index(file_name, ".") + 1]
 
     # Parsing of all pages
     pdf_recs_list = []
     custom_dpi = 320
     exit_key = False
+    threshold_mode_key = False
     while not exit_key:
+        tesseract_config = None
         try:
             doc = convert_from_path(pdf_path, dpi=custom_dpi, thread_count=2)
             for page_number, page_data in enumerate(doc):
@@ -652,8 +693,24 @@ def parsing_pdf(pdf_path):
                 # print("\n==================================== Page ====================================\n")
                 rec_list = []
 
-                # Getting page data as DataFrame
-                page_data_df = pp.get_page_data_df(page_data)
+                # Threshold recognition mode
+                if threshold_mode_key:
+                    dan.files.update({"threshold": f"{dan.dirs['images']}threshold.png"})
+                    file_path = dan.files["threshold"]
+                    page_data.save(file_path)
+                    img = cv.imread(file_path, cv.IMREAD_GRAYSCALE)
+                    ret, thresh1 = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
+
+                    page_data = np.array(thresh1)
+                    tesseract_config = "--psm 4"
+
+                    # Getting page data as DataFrame
+                    page_data_df = pp.get_page_data_df(page_data, tesseract_config=tesseract_config)
+
+                # Default recognition mode
+                else:
+                    # Getting page data as DataFrame
+                    page_data_df = pp.get_page_data_df(page_data)
 
                 # Choosing relevant parsing script
                 # list_of_doc_types = ["aux1.", "aux2.", "civ2.", ""]
@@ -689,6 +746,7 @@ def parsing_pdf(pdf_path):
 
                     # Removing double spaces and set UPPER case
                     for rec in rec_list:
+                        rec.update({"rec_index": doc_index})
                         for key in rec.keys():
                             if type(rec[key]) == str:
                                 rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
@@ -698,20 +756,32 @@ def parsing_pdf(pdf_path):
 
             break
         except Exception as _ex:
+
+            # Increase image dpi
             custom_dpi += 20
             print(f"[WARNING] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
-            if custom_dpi > 400:
+
+            # Enable threshold mode if default recognition failed
+            if custom_dpi > 400 and not threshold_mode_key:
+                custom_dpi = 620
+                threshold_mode_key = True
+                print(f"[WARNING] Recognition failed > threshold mode on | custom_dpi = {custom_dpi} | Next attempt")
+
+            # Exit if threshold mode recognition failed too
+            if custom_dpi > 700:
                 exit_key = True
 
-    # Save to json file
-    if not exit_key:
-        json_file_path = pdf_path[:-3] + "json"
-        print("Saving to:", json_file_path, end=".... ")
-        with open(json_file_path, "w") as json_file:
-            json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
-        print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
-    else:
-        print("[ERROR] Saving error")
+    # # Save to json file
+    # if not exit_key:
+    #     json_file_path = pdf_path[:-3] + "json"
+    #     print("Saving to:", json_file_path, end=" .... ")
+    #     with open(json_file_path, "w") as json_file:
+    #         json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
+    #     print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
+    # else:
+    #     print("[ERROR] Saving error")
+
+    return pdf_recs_list
 
 
 # # ===== Start app =================================================================================== Start app =====
@@ -725,49 +795,40 @@ def start_app():
     # print(args["stdout"])
     # print(dan)
 
-    # URLs and selectors used in the application
-    # urls = [
-    #     "http://tsjdgo.gob.mx/Recursos/ListasDeAcuerdos.html#",
-    # ]
-    # css_selectors = {
-    #     1: "#contenedor1",                   # button with text De la capital
-    #     2: "#contenedor2",                   # button with text Gómez Palacio y Lerdo
-    #     3: "#contenedor3",                   # button with text Juzgados foraneos
-    #     4: "#panel-oculto",                  # block after clicking button with text De la capital
-    #     5: "#panel-oculto2",                 # block after clicking button with text Gómez Palacio y Lerdo
-    #     6: "#panel-oculto1",                 # block after clicking button with text Juzgados foraneos
-    #     7: "input.der",                      # radio_buttons
-    #     8: "#panel-oculto input.der",        # radio_buttons for De la capital
-    #     9: "#panel-oculto2 input.der",       # radio_buttons for Gómez Palacio y Lerdo
-    #     10: "#panel-oculto1 input.der",      # radio_buttons for Juzgados foraneos
-    # }
-
-    # Getting values for url_generator
-    values_for_url = scrape_values_for_urls()
-
-    # Creating urls of files
-    files_urls = get_files_urls(
-        star_date=args['start_date'],
-        end_date=args['end_date'],
-        values_for_url=values_for_url
-    )
-
-    # Save file to temporary folder
-    asyncio.run(save_reports(files_urls))
-
-    # Connect to DB
-    # db_client = pymongo.MongoClient("mongodb://localhost:27017/")
+    #
+    # # Getting values for url_generator
+    # values_for_url = scrape_values_for_urls()
+    #
+    # # Creating urls of files
+    # files_urls = get_files_urls(
+    #     star_date=args['start_date'],
+    #     end_date=args['end_date'],
+    #     values_for_url=values_for_url
+    # )
+    #
+    # # Save file to temporary folder
+    # asyncio.run(save_reports(files_urls))
+    #
+    # TODO: Check if this rec_index there is in db
 
     # # Parsing pdf files
-    # pdf_path = "./temp/capital/2792017_aux1.pdf"
-    # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/2152019_seccc.pdf"
-    # print("\nProcessing:", pdf_path)
-    # parsing_pdf(pdf_path)
+    # all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
+    # for pdf_path in all_pdf_paths:
+    #     print("\nProcessing:", pdf_path)
+    #     parsing_pdf(pdf_path)
 
-    all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
-    for pdf_path in all_pdf_paths:
-        print("\nProcessing:", pdf_path)
-        parsing_pdf(pdf_path)
+    # # pdf_path = "./temp/capital/2792017_aux1.pdf"
+    pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/1732020_civ2.pdf"
+    print("\nProcessing:", pdf_path)
+    records_list = parsing_pdf(pdf_path)
+
+    # Add records to db
+    add_records_to_db(records_list)
+
+    # Delete all duplicates from db
+    delete_all_duplicates()
+
+    # TODO: if server is down then waiting 2 days (solve as new exception)
 
     # Delete temp folder
     # dan.remove_dirs()

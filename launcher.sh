@@ -102,6 +102,10 @@ if [ "$r_key" = true ]; then
     pip freeze
 fi
 
+# Start MongoDB
+echo "Starting MongoDB (It may requests permission)"
+sudo systemctl start mongod
+
 # Start app
 printf "\n\033[93m%s\033[0m\n" "Start app"
 printf "%s\n" "python $pt $str_param > "

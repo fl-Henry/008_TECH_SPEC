@@ -16,54 +16,609 @@ from time import sleep
 import pdf_parser as pp
 import general_methods as gm
 
+# def get_json_from_fin
 
 
-def replace_wrong_recognitions(in_str):
-    replace_dict = {
-        "‘TER.": "1ER.",
-        "TER.": "1ER.",
-        "‘ER.": "1ER.",
-    }
-    result_str = in_str
-    for key in replace_dict.keys():
-        result_str = ""
-        last_char = 0
-        for char_counter in range(len(in_str) - len(key)):
-            if_in = in_str[char_counter:char_counter + len(key)].upper() in [*replace_dict.keys()]
-            if if_in:
-                result_str += in_str[last_char:char_counter] + replace_dict[key]
-                last_char = char_counter + len(key)
-        result_str += in_str[last_char:]
-        in_str = result_str
+db_client = pymongo.MongoClient("mongodb://localhost:27017/")
+db = db_client["raw"]
+collection = db["juzgados"]
 
-    return result_str
+
 
 
 
 def main():
     pass
-    # sers = pd.Series([0, 1, 2])
-    # print(sers)
-    # sers[3] = 3
-    # print(sers)
-    # types_dict = {col: "int" for col in ["left", "top", "width", "height", "right", "bottom"]}
-    #
-    # print(types_dict)
 
-    # str_s = [
-    #     "TERCERO DE LO CIVIL ‘ER. DISTRITO JUDICIAL ORD...",
-    #     "SEGUNDO DELO FAMILIAR TER. DISTRITO JUDICIAL C...",
-    #     "TERCERO DE LO CIVIL ‘TER. DISTRITO JUDICIAL OR..."
-    # ]
-    #
-    # for str_ in str_s:
-    #     res = replace_wrong_recognitions(str_)
-    #     print(str_)
-    #     print(res)
-    #     print()
+    # sudo systemctl start mongod
+    records_list = [
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00579/2014",
+            "expediente_origen": "",
+            "actor": "BBVA BANCOMER, SOCIEDAD ANONIMA, INSTITUCION DE BANCA MULTIPLE GRUPO FINANCIERO BBVA BANCOMER",
+            "demandado": "ANTONIO MEDINA CHAMORRO",
+            "acuerdos": "",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00116/2015-1",
+            "expediente_origen": "",
+            "actor": "MARIA DOLORES GONZALEZ ROMERO",
+            "demandado": "SERGIO HERIBERTO AGUIRRE RAMOS,CARMEN ALICIA AGUIRRE RAMOS,ELSA CORINA AGUIRRE RAMOS DE SARMIENTO,VICTOR HUGO AGUIRRE RAMOS,MAGDALENA RAMOS CONTRERAS VDA DE AGUIRRE",
+            "acuerdos": "",
+            "tipo": "PLANILLA DE LIQUIDACION DE SENTENCIA",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00516/2015",
+            "expediente_origen": "",
+            "actor": "CONDUENOS DE LA SIERRA DEL NAYAR, SOCIEDAD CIVIL",
+            "demandado": "JOSE LUIS HERNANDEZ RODRIGUEZ,JUAN CARLOS LUNA HERNANDEZ",
+            "acuerdos": "",
+            "tipo": "ESPECIAL DESAHUCIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00260/2016",
+            "expediente_origen": "",
+            "actor": "METROFINANCIERA, SOCIEDAD ANONIMA, PROMOTORA DE INVERSION DE CAPITAL VARIABLE, SOCIEDAD FINANCIERA DE OBJETO MULTIPLE, ENTIDAD REGULADA",
+            "demandado": "EDGAR LEOBARDO CARRILLO PEREZ",
+            "acuerdos": "",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00233/2018",
+            "expediente_origen": "",
+            "actor": "JESUS SARMIENTO SIERRA",
+            "demandado": "LAURA OFELIA SARMIENTO HERNANDEZ",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00245/2018",
+            "expediente_origen": "",
+            "actor": "DOLORES ROSARIO CHAVEZ VARGAS",
+            "demandado": "MARGARITA CHAVEZ VARGAS",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00341/2018",
+            "expediente_origen": "",
+            "actor": "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES",
+            "demandado": "",
+            "acuerdos": "(INFONAVIT) VS MARTHA ALEJANDRA ZAVALA HERRERA",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00359/2018",
+            "expediente_origen": "",
+            "actor": "MARC DIGITAL, S. DE .R.L. DE C.V. A FAVOR DE: GRACIELA MARCELA VALDES THOMPSON",
+            "demandado": "",
+            "acuerdos": "",
+            "tipo": "DILIGENCIAS PRELIMINARES DE CONSIGNACION",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:37:02.570028",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00446/2018",
+            "expediente_origen": "",
+            "actor": "AMPARO ALCALA ORDAZ",
+            "demandado": "LUZ ELENA RUACHO HERNANDEZ PAGINA : 1/3",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00099/2019",
+            "expediente_origen": "",
+            "actor": "ESPECIAL HIPOTECARIO BANCO NACIONAL DEL EJERCITO FUERZA AEREA Y ARMADA SOCIEDAD NACIONAL DE CREDITO INSTITUCION DE BANCA DE DESARROLLO",
+            "demandado": "ISMAEL DELAROSA DIAZ",
+            "acuerdos": "",
+            "tipo": "EXHORTO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00221/2019",
+            "expediente_origen": "",
+            "actor": "BBVA BANCOMER, INSTITUCION DE BANCA MULTIPLE, GRUPO FINANCIERO BBVA BANCOMER",
+            "demandado": "JUAN ESTEBAN ZAMORA RAMIREZ,MARTHA MIREYA CONTRERAS RAMIREZ",
+            "acuerdos": "",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00291/2019",
+            "expediente_origen": "",
+            "actor": "MARTHA ELVA CORRAL SOSA",
+            "demandado": "CESAR ARMANDO CORRAL CAMPOS",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00297/2019",
+            "expediente_origen": "",
+            "actor": "MA MARTA DUENEZ GARCIA,MARTHA DUENEZ GARCIA",
+            "demandado": "HUGO PAYAN GANDARA, DIRECTOR DEL REGISTRO PUBLICO DE LA PROPIEDAD EN EL ESTADO DE DURANGO,NOTARIO PUBLICO NUMERO 9 LIC. HUMBERTO NEVAREZ PEREDA",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00320/2019",
+            "expediente_origen": "",
+            "actor": "LUCIA FLORES REYES",
+            "demandado": "MARIA ROCINA MARTINEZ DE LEON,COMISION ESTATAL DE SUELO Y VIVIENDA DE DURANGO,REGISTRO PUBLICO DE LA PROPIEDAD DE ESTE DISTRITO,LIC. JOSE ANTONIO ALVARADO RUIZ NOTARIO PUBLICO NUMERO 18 EN EJERCICIO DE ESTA CIUDAD",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00327/2019",
+            "expediente_origen": "",
+            "actor": "COMISION ESTATAL DE SUELO Y VIVIENDA DE DURANGO",
+            "demandado": "MARIA VIRGINIA SILVA RODRIGUEZ",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00358/2019",
+            "expediente_origen": "",
+            "actor": "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES",
+            "demandado": "LUCIO ALVARADO GUERECA,SOFIA CABRAL ESPINOZA",
+            "acuerdos": "",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00361/2019",
+            "expediente_origen": "",
+            "actor": "JORGE HERIBERTO ZUNIGA VILLASANA,SANDRA GUADALUPE TORRES GALLEGOS",
+            "demandado": "HECTOR HUGO GONZALEZ PADILLA,DIRECTOR DEL REGISTRO PUBLICO DE LA PROPIEDAD Y DEL COMERCIO",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00434/2019",
+            "expediente_origen": "",
+            "actor": "JOSE HUERTA FLORES",
+            "demandado": "ABDON EDUARDO MARTINEZ SOTO,EDUARDO MARTINEZ SAENZ,BEATRIZ EUGENIA SAENZ MIRANDA",
+            "acuerdos": "(AUDIENCIA)",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00449/2019",
+            "expediente_origen": "",
+            "actor": "ELVA MERAZ ASTORGA",
+            "demandado": "",
+            "acuerdos": "",
+            "tipo": "DILIGENCIAS DE JURISDICCION VOLUNTARIA INFORMACION AD PERPETUAM",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00468/2019",
+            "expediente_origen": "",
+            "actor": "ADMINISTRADORA FOME 1, SOCIEDAD DE RESPONSABILIDAD LIMITADA DE CAPITAL VARIABLE",
+            "demandado": "JOSE LUIS ESCAMILLA HERNANDEZ,MARGARITA DE LA LUZ DIAZ GRACIA",
+            "acuerdos": "(AUDIENCIA)",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00484/2019",
+            "expediente_origen": "",
+            "actor": "COMISION ESTATAL DE SUELO Y VIVIENDA DE DURANGO",
+            "demandado": "MONICA DANIELA CARRAZCO LARES",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00521/2019",
+            "expediente_origen": "",
+            "actor": "ADMINISTRADORA FOME 1, SOCIEDAD DE RESPONSABILIDAD LIMITADA DE CAPITAL VARIABLE",
+            "demandado": "HILDA ANGELICA CONTRERAS RIVAS,LUIS GERARDO REYES MARTINEZ",
+            "acuerdos": "",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00552/2019",
+            "expediente_origen": "",
+            "actor": "SALVADOR NUNEZ VELA",
+            "demandado": "FELICITAS LARES TAMAYO",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00569/2019",
+            "expediente_origen": "",
+            "actor": "ELI AMANDA DELGADO ALVARADO",
+            "demandado": "MA EUGENIA HIDALGO GONZALEZ,REGISTRO PUBLICO DE LA PROPIEDAD DE ESTE DISTRITO JUDICIAL",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00571/2019",
+            "expediente_origen": "",
+            "actor": "BBVA BANCOMER SOCIEDAD ANONIMA INSTITUCION DE BANCA MULTIPLE GRUPO FINANCIERO BBVA BANCOMER",
+            "demandado": "JOSE ISABEL HERNANDEZ CIGARROA,BLANCA IRENE JAQUEZ LOPEZ",
+            "acuerdos": "(AUDIENCIA)",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:39:30.063640",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00626/2019",
+            "expediente_origen": "",
+            "actor": "NICANDRO SANCHEZ SOSA",
+            "demandado": "PAGINA : 2/3",
+            "acuerdos": "",
+            "tipo": "PROCEDIMIENTO ESPECIAL PARA INMATRICULAR UN INMUEBLE",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00637/2019",
+            "expediente_origen": "",
+            "actor": "SIXTO DELGADO PENA",
+            "demandado": "LIBIA MAGDALENA ALCANTAR DIAZ",
+            "acuerdos": "",
+            "tipo": "ORDINARIO CIVIL",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00638/2019",
+            "expediente_origen": "",
+            "actor": "JORGE ALFONSO MARTEL VAZQUEZ",
+            "demandado": "",
+            "acuerdos": "",
+            "tipo": "DILIGENCIAS DE JURISDICCION VOLUNTARIA INFORMACION AD PERPETUAM",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00641/2019",
+            "expediente_origen": "",
+            "actor": "MULTICARGA S.A. DE C.V. A FAVOR DE: GERARDO ABRAHAM GARCIA VELAZQUEZ Y YADIRA YANETH BANALES ALVAREZ",
+            "demandado": "",
+            "acuerdos": "",
+            "tipo": "DILIGENCIAS PRELIMINARES DE CONSIGNACION",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00079/2020",
+            "expediente_origen": "",
+            "actor": "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES",
+            "demandado": "",
+            "acuerdos": "(INFONAVIT) VS CARLOS ALBERTO ROJAS REYES,MARCELINA RODRIGUEZ PENA",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00136/2020",
+            "expediente_origen": "",
+            "actor": "LTG DESTILADOS, S.A.P.I. DE C.V.",
+            "demandado": "",
+            "acuerdos": "(AUDIENCIA)",
+            "tipo": "DILIGENCIAS PRELIMINARES DE CONSIGNACION",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00148/2020",
+            "expediente_origen": "",
+            "actor": "LEONARDO AVALOS NAVARRO",
+            "demandado": "",
+            "acuerdos": "(NUEVO)",
+            "tipo": "ESPECIAL DESAHUCIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00153/2020",
+            "expediente_origen": "",
+            "actor": "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES",
+            "demandado": "",
+            "acuerdos": "(INFONAVIT) (NUEVO)",
+            "tipo": "ESPECIAL HIPOTECARIO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        },
+        {
+            "juzgado": "JUZGADO SEGUNDO DE LO CIVIL DEL 1ER. DISTRITO JUDICIAL",
+            "fecha": "2020/3/17",
+            "fecha_insercion": "2023-05-13T20:42:01.825873",
+            "fecha_tecnica": "2020-03-17T00:00:00",
+            "materia": "CIVIL",
+            "entidad": "DE LA CAPITAL",
+            "expediente": "00017/2001",
+            "expediente_origen": "",
+            "actor": "RECUPERACION DE COMERCIO INTERIOR, S. DE R.L. DE C.V.",
+            "demandado": "RENE ORTIZ DELA PARRA",
+            "acuerdos": "",
+            "tipo": "AMPARO",
+            "Organo_jurisdiccional_origen": "",
+            "fuero": "COMUN",
+            "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO"
+        }
+    ]
 
-    for x in range(0, 8):
-        print(-x)
+    # rand_record = records_list[random.randint(0, len(records_list) - 1)]
+    # rand_record.update({"entidad": "None"})
+    # print(rand_record)
+    # collection.insert_one(rand_record)
+
+
+
 
 def anchor_for_navigate():
     pass

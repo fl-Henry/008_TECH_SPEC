@@ -22,10 +22,11 @@ class DaNHandler:
         self.dirs = {
             "base_dir": base_dir,
             "temp_dir": temp_dir,
-            "for_tests_dir": for_tests_dir,
+            "images": f"{temp_dir}images/",
             "capital": f"{temp_dir}capital/",
             "lerdo": f"{temp_dir}lerdo/",
             "foraneos": f"{temp_dir}foraneos/",
+            "for_tests_dir": for_tests_dir,
         }
 
         self.dirs_to_remove = {
