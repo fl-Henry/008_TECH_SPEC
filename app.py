@@ -870,6 +870,12 @@ def scrape_date(files_date):
             sleep(2 * 60 * 60)
 
 
+def check_and_scrape_dates(dates_list):
+    for date_item in dates_list:
+        if check_date(date_item):
+            scrape_date(date_item)
+
+
 def start_app():
 
     print(args["stdout"])
@@ -878,21 +884,23 @@ def start_app():
     # Getting all dates between star_date and end_date
     dates_list = gm.dates_between(args["start_date"], args["end_date"])
 
-    # Get data for all dates between
     try:
-        for date_item in dates_list:
-            if check_date(date_item):
-                scrape_date(date_item)
+        # Scrape all the specified dates
+        check_and_scrape_dates(dates_list)
+
+        if args["last_today"]:
+            while True:
+                print(f"\n{Tags.LightYellow}Sleep 2 days from: {datetime.today()}{Tags.ResetAll}")
+                sleep(2 * 24 * 60 * 60)
+
+                # Getting all dates between start_date and today, check in db and scrape
+                last_dates_list = gm.dates_between(args["start_date"])
+                check_and_scrape_dates(last_dates_list)
 
     except KeyboardInterrupt:
         print("EXIT ... ")
+        dan.remove_dirs()
         sys.exit()
-
-    # TODO: 2 checks per week
-    # TODO: If all scrape_date are completed and last day is today then
-    #           wait 2 days,
-    #           last day + 1 day
-    #               and continue scrape
 
 
 def anchor_for_navigate():

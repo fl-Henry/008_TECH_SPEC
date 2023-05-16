@@ -96,7 +96,10 @@ def arg_parser():
         # args.update({"tests_list": str(parsed_args.tests_str).split("-")})
         args.update({"start_date": [int(x) for x in str(parsed_args.start_date).split("-")]})
         if parsed_args.end_date is None:
+            args.update({"last_today": True})
             parsed_args.end_date = datetime.today().strftime("%d-%m-%Y")
+        else:
+            args.update({"last_today": False})
         args.update({"end_date": [int(x) for x in str(parsed_args.end_date).split("-")]})
 
         # Output of arguments
@@ -613,13 +616,16 @@ def url_parent(file_url, iter_count=1):
 # # ===== Date Methods ============================================================================= Date Methods =====
 
 
-def dates_between(start_date, end_date):
+def dates_between(start_date, end_date=None):
     """
     :param start_date: tuple[int, int, int]     | (31, 12, 2023)
-    :param end_date: tuple[int, int, int]       | (31, 12, 2023)
+    :param end_date: tuple[int, int, int]       | (31, 12, 2023) or None for today
     :return: list[tuple[int, int, int]]
     """
     start_date = date(start_date[2], start_date[1], start_date[0])
+
+    if end_date is None:
+        end_date = [int(x) for x in str(datetime.today().strftime("%d-%m-%Y")).split("-")]
     end_date = date(end_date[2], end_date[1], end_date[0])
 
     delta = end_date - start_date

@@ -64,10 +64,9 @@ def main():
         '/home/user_name/PycharmProjects/008_TECH_SPEC/temp/lerdo/1732020_Civ1GP.pdf'
     ]
 
-    print(len(all_pdf_paths))
-    all_pdf_paths = check_rec_index(all_pdf_paths)
-    print(len(all_pdf_paths))
-
+    print(collection.find())
+    for item in collection.find():
+        print(item)
 
 def anchor_for_navigate():
     pass
