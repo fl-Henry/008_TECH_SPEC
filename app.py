@@ -124,6 +124,27 @@ def get_all_files_by_extension(dir_to_find: str, extension: str):
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 
 
+class ServerIsDown(Exception):
+    def __init__(self):
+        super().__init__("Server is down")
+
+
+def check_date(files_date):
+
+    # Creating rec_index from db
+    mdbh = MongodbHandler(host="mongodb://localhost:27017/", db_name="raw", collection_name="juzgados")
+    db_rec_indexes = mdbh.collection.find({}, {"_id": 0, "fecha": 1})
+    db_rec_indexes = [x["fecha"] for x in db_rec_indexes]
+
+    # Checking if db_rec_index contains files_date
+    rec_index = f"{files_date[2]}/{files_date[1]}/{files_date[0]}"
+    if rec_index.upper() not in db_rec_indexes:
+        mdbh.db_client.close()
+        return True
+
+    return False
+
+
 def replace_wrong_recognitions(in_str):
     replace_dict = {
         "‘TER.": "1ER.",
@@ -195,23 +216,32 @@ def scrape_values_for_urls():
         10: "#panel-oculto1 input.der",  # radio_buttons for Juzgados foraneos
     }
 
-    response = requests.get(urls[0])
-    soup = BeautifulSoup(response.text, "lxml")
-    list_capital = soup.select(css_selectors[8])
-    list_lerdo = soup.select(css_selectors[9])
-    list_foraneos = soup.select(css_selectors[10])
-    values_for_url = {
-        "capital": [x['value'] for x in list_capital],
-        "lerdo": [x['value'] for x in list_lerdo],
-        "foraneos": [x['value'] for x in list_foraneos],
-    }
+    server_is_down_key = True
+    for _ in range(3):
+        try:
+            response = requests.get(urls[0])
+            soup = BeautifulSoup(response.text, "lxml")
+            list_capital = soup.select(css_selectors[8])
+            list_lerdo = soup.select(css_selectors[9])
+            list_foraneos = soup.select(css_selectors[10])
+            values_for_url = {
+                "capital": [x['value'] for x in list_capital],
+                "lerdo": [x['value'] for x in list_lerdo],
+                "foraneos": [x['value'] for x in list_foraneos],
+            }
+            server_is_down_key = False
+            break
+
+        except TimeoutError:
+            continue
+
+    if server_is_down_key:
+        raise ServerIsDown
 
     return values_for_url
 
 
-def get_files_urls(star_date, end_date, values_for_url):
-    # Getting all dates between star_date and end_date
-    dates_list = gm.dates_between(star_date, end_date)
+def get_files_urls(files_date, values_for_url):
 
     # Creating blank dict for every key
     file_url_dict = {}
@@ -224,16 +254,15 @@ def get_files_urls(star_date, end_date, values_for_url):
             file_url_dict[key].update({der: []})
 
     # Generating urls of files
-    for date_item in dates_list:
-        for key in values_for_url.keys():
-            for der in values_for_url[key]:
-                file_url = url_generator(date_item, der)
-                file_url_dict[key][der].append(file_url)
+    for key in values_for_url.keys():
+        for der in values_for_url[key]:
+            file_url = url_generator(files_date, der)
+            file_url_dict[key][der].append(file_url)
 
     return file_url_dict
 
 
-async def save_reports(files_urls):
+async def save_reports(files_urls, files_date):
 
     async with aiohttp.ClientSession(headers=HEADERS) as session:
         tasks = []
@@ -241,7 +270,7 @@ async def save_reports(files_urls):
             file_dir = f"{dan.dirs[key]}"
             for der in files_urls[key]:
                 for file_url in files_urls[key][der]:
-                    file_date = gm.url_to_name(file_url, iter_count=2)
+                    file_date = f"{files_date[0]}-{files_date[1]}-{files_date[2]}"
                     file_name = gm.url_to_name(file_url)
                     file_path = f"{file_dir}{file_date}_{file_name}"
                     task = asyncio.create_task(write_file(session, file_url, file_path, stdout_key=True))
@@ -669,13 +698,25 @@ def parsing_pdf(pdf_path):
 
     default_record = {
         "fuero": "COMUN",
+        "monto": "",
+        "fecha_presentacion": "",
+        "actos_reclamados": "",
+        "actos_reclamados_especificos": "",
+        "Naturaleza_procedimiento": "",
+        "Prestación_demandada": "",
+        "Organo_jurisdiccional_origen": "",
+        "expediente_origen": "",
+        "materia": "",
+        "submateria": "",
+        "fecha_sentencia": "",
+        "sentido_sentencia": "",
+        "resoluciones": "",
         "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO",
     }
 
     # Doc type // part of filename
     file_name = gm.url_to_name(pdf_path)
     doc_type = file_name[gm.find_char_index(file_name, "_") + 1:gm.find_char_index(file_name, ".") + 1]
-    doc_index = file_name[:gm.find_char_index(file_name, ".") + 1]
 
     # Parsing of all pages
     pdf_recs_list = []
@@ -689,9 +730,6 @@ def parsing_pdf(pdf_path):
             for page_number, page_data in enumerate(doc):
                 # if page_number + 1 != 1:
                 #     continue
-
-                # print("\n==================================== Page ====================================\n")
-                rec_list = []
 
                 # Threshold recognition mode
                 if threshold_mode_key:
@@ -712,47 +750,42 @@ def parsing_pdf(pdf_path):
                     # Getting page data as DataFrame
                     page_data_df = pp.get_page_data_df(page_data)
 
-                # Choosing relevant parsing script
-                # list_of_doc_types = ["aux1.", "aux2.", "civ2.", ""]
-                # if doc_type in ["aux1.", "aux2."]:
-                if True:
-                    # Getting table data as fields A B C D E
-                    rec_list = aux(page_data_df)
+                # Getting table data as fields A B C D E
+                rec_list = aux(page_data_df)
 
-                    # Parsing of table data
-                    h = get_materia(doc_type)
-                    for rec_index in range(len(rec_list)):
+                # Parsing of table data
+                h = get_materia(doc_type)
+                for rec_index in range(len(rec_list)):
 
-                        # H // MATERIA and "entidad"
-                        rec_list[rec_index].update(h)
+                    # H // MATERIA and "entidad"
+                    rec_list[rec_index].update(h)
 
-                        # C I // EXPEDIENTE and EXPEDIENTE ORIGEN
-                        parsed_c = parse_field_c(rec_list[rec_index]["C"])
-                        rec_list[rec_index].update(parsed_c)
-                        del rec_list[rec_index]["C"]
+                    # C I // EXPEDIENTE and EXPEDIENTE ORIGEN
+                    parsed_c = parse_field_c(rec_list[rec_index]["C"])
+                    rec_list[rec_index].update(parsed_c)
+                    del rec_list[rec_index]["C"]
 
-                        # E F G // ACTOR, DEMANDADO and ACUERDOS
-                        parsed_e = parse_field_e(rec_list[rec_index]["E"])
-                        rec_list[rec_index].update(parsed_e)
-                        del rec_list[rec_index]["E"]
+                    # E F G // ACTOR, DEMANDADO and ACUERDOS
+                    parsed_e = parse_field_e(rec_list[rec_index]["E"])
+                    rec_list[rec_index].update(parsed_e)
+                    del rec_list[rec_index]["E"]
 
-                        # D I // TIPO and ORGANO JURISDICCIONAL ORIGEN
-                        parsed_d = parse_field_d(rec_list[rec_index]["D"])
-                        rec_list[rec_index].update(parsed_d)
-                        del rec_list[rec_index]["D"]
+                    # D I // TIPO and ORGANO JURISDICCIONAL ORIGEN
+                    parsed_d = parse_field_d(rec_list[rec_index]["D"])
+                    rec_list[rec_index].update(parsed_d)
+                    del rec_list[rec_index]["D"]
 
-                        # + default records
-                        rec_list[rec_index].update(default_record)
+                    # + default records
+                    rec_list[rec_index].update(default_record)
 
-                    # Removing double spaces and set UPPER case
-                    for rec in rec_list:
-                        rec.update({"rec_index": doc_index})
-                        for key in rec.keys():
-                            if type(rec[key]) == str:
-                                rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
-                                rec.update({key: replace_wrong_recognitions(rec[key])})
+                # Removing double spaces and set UPPER case
+                for rec in rec_list:
+                    for key in rec.keys():
+                        if type(rec[key]) == str:
+                            rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
+                            rec.update({key: replace_wrong_recognitions(rec[key])})
 
-                        pdf_recs_list.append(rec)
+                    pdf_recs_list.append(rec)
 
             break
         except Exception as _ex:
@@ -789,55 +822,77 @@ def parsing_pdf(pdf_path):
 # # ===== Start app =================================================================================== Start app =====
 
 
+def scrape_date(files_date):
+
+    dan.create_dirs()
+
+    # Getting values for url_generator
+    for _ in range(3):
+        try:
+            values_for_url = scrape_values_for_urls()
+
+            # Creating urls of files
+            files_urls = get_files_urls(
+                files_date=files_date,
+                values_for_url=values_for_url
+            )
+
+            # Save file to temporary folder
+            for _ in range(3):
+                try:
+                    asyncio.run(save_reports(files_urls, files_date))
+                    break
+                except asyncio.TimeoutError:
+                    continue
+
+            # Getting list of pdf_path
+            all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
+
+            # Parsing pdf files
+            records_list = []
+            for pdf_path in all_pdf_paths:
+                print("\nProcessing:", pdf_path)
+                records_list = parsing_pdf(pdf_path)
+
+            if len(records_list) > 0:
+
+                # Add records to db
+                add_records_to_db(records_list)
+
+                # Delete all duplicates from db
+                delete_all_duplicates()
+
+            # Delete temp folder
+            dan.remove_dirs()
+            break
+
+        except ServerIsDown:
+            sleep(2 * 60 * 60)
+
+
 def start_app():
-    start_time = datetime.now()
 
-    # print(args["stdout"])
-    # print(dan)
+    print(args["stdout"])
+    print(dan)
 
-    #
-    # # Getting values for url_generator
-    # values_for_url = scrape_values_for_urls()
-    #
-    # # Creating urls of files
-    # files_urls = get_files_urls(
-    #     star_date=args['start_date'],
-    #     end_date=args['end_date'],
-    #     values_for_url=values_for_url
-    # )
-    #
-    # # Save file to temporary folder
-    # asyncio.run(save_reports(files_urls))
-    #
-    # TODO: Check if this rec_index there is in db
+    # Getting all dates between star_date and end_date
+    dates_list = gm.dates_between(args["start_date"], args["end_date"])
 
-    # # Parsing pdf files
-    # all_pdf_paths = get_all_files_by_extension(dan.dirs["temp_dir"], "pdf")
-    # for pdf_path in all_pdf_paths:
-    #     print("\nProcessing:", pdf_path)
-    #     parsing_pdf(pdf_path)
+    # Get data for all dates between
+    try:
+        for date_item in dates_list:
+            if check_date(date_item):
+                scrape_date(date_item)
 
-    # # pdf_path = "./temp/capital/2792017_aux1.pdf"
-    pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/temp/capital/1732020_civ2.pdf"
-    print("\nProcessing:", pdf_path)
-    records_list = parsing_pdf(pdf_path)
+    except KeyboardInterrupt:
+        print("EXIT ... ")
+        sys.exit()
 
-    # Add records to db
-    add_records_to_db(records_list)
-
-    # Delete all duplicates from db
-    delete_all_duplicates()
-
-    # TODO: if server is down then waiting 2 days (solve as new exception)
-
-    # Delete temp folder
-    # dan.remove_dirs()
-    ...
-    ...
-    # Stdout working time
-    end_time = datetime.now()
-    work_time = end_time - start_time
-    print("Working time of the app:", work_time)
+    # TODO: 2 checks per week
+    # TODO: If all scrape_date are completed and last day is today then
+    #           wait 2 days,
+    #           last day + 1 day
+    #               and continue scrape
 
 
 def anchor_for_navigate():

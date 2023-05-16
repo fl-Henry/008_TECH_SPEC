@@ -79,7 +79,7 @@ def arg_parser():
         parser = argparse.ArgumentParser(description='TECH_SPEC')
         # parser.add_argument('--tests', dest='tests_str', default=None,
         #                     help='Names of testes // separator "-"; Ex: "01-02-03"')
-        parser.add_argument('--start-date', dest='start_date', default='1-1-2023',
+        parser.add_argument('--start-date', dest='start_date', default='27-9-2017',
                             help='Which date is scraping starts from // dd-mm-yyyy; Ex: "31-12-2022"')
         parser.add_argument('--end-date', dest='end_date', default=None,
                             help='Which date is scraping ends to // dd-mm-yyyy; Ex: "31-12-2022"')
