@@ -132,7 +132,7 @@ class ServerIsDown(Exception):
 def check_date(files_date):
 
     # Creating rec_index from db
-    mdbh = MongodbHandler(host="mongodb://localhost:27017/", db_name="raw", collection_name="juzgados")
+    mdbh = MongodbHandler(host="mongodb://db:27017/", db_name="raw", collection_name="juzgados")
     db_rec_indexes = mdbh.collection.find({}, {"_id": 0, "fecha": 1})
     db_rec_indexes = [x["fecha"] for x in db_rec_indexes]
 
@@ -142,6 +142,7 @@ def check_date(files_date):
         mdbh.db_client.close()
         return True
 
+    mdbh.db_client.close()
     return False
 
 

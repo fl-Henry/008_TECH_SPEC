@@ -13,7 +13,7 @@ r_key=false
 update_key=false
 install_key=false
 str_param=""
-pt="app.py"
+pt="./app/app.py"
 
 printf "%s " "Params: "
 while [ "$#" -gt 0 ]
