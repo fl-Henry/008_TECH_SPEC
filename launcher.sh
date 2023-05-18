@@ -101,6 +101,9 @@ if [ "$install_key" = true ]; then
 
     printf "\n\033[93m%s\033[0m\n" "MongoDB installation"
     sudo apt-get install gnupg
+    curl -fsSL https://pgp.mongodb.com/server-6.0.asc | \
+       sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg \
+       --dearmor
     echo "deb [ signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg] http://repo.mongodb.org/apt/debian bullseye/mongodb-org/6.0 main" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
     sudo apt-get update
     sudo apt-get install -y mongodb-org
@@ -110,8 +113,9 @@ if [ "$install_key" = true ]; then
     sudo apt-get install tesseract-ocr
 
     printf "\n\033[93m%s\033[0m\n" "Virtual environment installation"
-    python3 -m pip install --user --upgrade pip
+    sudo apt install python3-venv python3-pip
     python3 -m pip install --user virtualenv
+    python3 -m venv venv
     source ./venv/bin/activate || err_exit $?
 
     printf "\n\033[93m%s\033[0m\n" "Requirements installation"
