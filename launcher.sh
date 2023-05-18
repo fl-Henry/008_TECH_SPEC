@@ -110,6 +110,7 @@ if [ "$install_key" = true ]; then
     sudo apt-get install tesseract-ocr
 
     printf "\n\033[93m%s\033[0m\n" "Virtual environment installation"
+    python3 -m pip install --user --upgrade pip
     python3 -m pip install --user virtualenv
     source ./venv/bin/activate || err_exit $?
 
