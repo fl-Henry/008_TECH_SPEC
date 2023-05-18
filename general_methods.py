@@ -101,6 +101,7 @@ def arg_parser():
         else:
             args.update({"last_today": False})
         args.update({"end_date": [int(x) for x in str(parsed_args.end_date).split("-")]})
+        args.update({"failed_processing": 0})
 
         # Output of arguments
         stdout = "\nArguments: "

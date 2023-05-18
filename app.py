@@ -343,46 +343,46 @@ def get_materia(doc_type):
     }
 
     match_entidad_dict = {
-        "aux1.": "DE LA CAPITAL",
-        "aux2.": "DE LA CAPITAL",
-        "civ2.": "DE LA CAPITAL",
-        "civ3.": "DE LA CAPITAL",
-        "civ4.": "DE LA CAPITAL",
-        "fam1.": "DE LA CAPITAL",
-        "fam2.": "DE LA CAPITAL",
-        "fam3.": "DE LA CAPITAL",
-        "fam4.": "DE LA CAPITAL",
-        "fam5.": "DE LA CAPITAL",
-        "mer1.": "DE LA CAPITAL",
-        "mer2.": "DE LA CAPITAL",
-        "mer3.": "DE LA CAPITAL",
-        "mer4.": "DE LA CAPITAL",
-        "merOral.": "DE LA CAPITAL",
-        "seccc.": "DE LA CAPITAL",
-        "seccu.": "DE LA CAPITAL",
-        "cjmf1.": "DE LA CAPITAL",
-        "cjmf2.": "DE LA CAPITAL",
-        "tribl.": "DE LA CAPITAL",
-        "Civ1GP.": "GOMEZ PALACIO Y LERDO",
-        "Civ2GP.": "GOMEZ PALACIO Y LERDO",
-        "Fam1GP.": "GOMEZ PALACIO Y LERDO",
-        "Fam2GP.": "GOMEZ PALACIO Y LERDO",
-        "AuxMixtoGP.": "GOMEZ PALACIO Y LERDO",
-        "Fam3GP.": "GOMEZ PALACIO Y LERDO",
-        "secccGP.": "GOMEZ PALACIO Y LERDO",
-        "seccuGP.": "GOMEZ PALACIO Y LERDO",
-        "triblG.": "GOMEZ PALACIO Y LERDO",
+        "aux1.": "DE LA CAPITAL DURANGO",
+        "aux2.": "DE LA CAPITAL DURANGO",
+        "civ2.": "DE LA CAPITAL DURANGO",
+        "civ3.": "DE LA CAPITAL DURANGO",
+        "civ4.": "DE LA CAPITAL DURANGO",
+        "fam1.": "DE LA CAPITAL DURANGO",
+        "fam2.": "DE LA CAPITAL DURANGO",
+        "fam3.": "DE LA CAPITAL DURANGO",
+        "fam4.": "DE LA CAPITAL DURANGO",
+        "fam5.": "DE LA CAPITAL DURANGO",
+        "mer1.": "DE LA CAPITAL DURANGO",
+        "mer2.": "DE LA CAPITAL DURANGO",
+        "mer3.": "DE LA CAPITAL DURANGO",
+        "mer4.": "DE LA CAPITAL DURANGO",
+        "merOral.": "DE LA CAPITAL DURANGO",
+        "seccc.": "DE LA CAPITAL DURANGO",
+        "seccu.": "DE LA CAPITAL DURANGO",
+        "cjmf1.": "DE LA CAPITAL DURANGO",
+        "cjmf2.": "DE LA CAPITAL DURANGO",
+        "tribl.": "DE LA CAPITAL DURANGO",
+        "Civ1GP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "Civ2GP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "Fam1GP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "Fam2GP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "AuxMixtoGP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "Fam3GP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "secccGP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "seccuGP.": "GOMEZ PALACIO Y LERDO DURANGO",
+        "triblG.": "GOMEZ PALACIO Y LERDO DURANGO",
         "Mixto1Lerdo.": "GOMEZ PALACIO Y LERDO",
         "Mixto2Lerdo.": "GOMEZ PALACIO Y LERDO",
-        "canatlan.": "CANATLAN",
-        "nombrededios.": "NOMBRE DE DIOS",
-        "nazas.": "NAZAS",
-        "cuencame.": "CUENCAME",
-        "sanjuandelrio.": "SAN JUAN DEL RIO",
-        "elsalto.": "GUADALUPE VICTORIA",
-        "santamariadeloro.": "SANTIAGO PAPASQUIARO",
-        "victoria.": "EL SALTO PUEBLO NUEVO",
-        "santiago.": "SANTA MARIA DEL ORO",
+        "canatlan.": "CANATLAN DURANGO",
+        "nombrededios.": "NOMBRE DE DIOS DURANGO",
+        "nazas.": "NAZAS DURANGO",
+        "cuencame.": "CUENCAME DURANGO",
+        "sanjuandelrio.": "SAN JUAN DEL RIO DURANGO",
+        "elsalto.": "GUADALUPE VICTORIA DURANGO",
+        "santamariadeloro.": "SANTIAGO PAPASQUIARO DURANGO",
+        "victoria.": "EL SALTO PUEBLO NUEVO DURANGO",
+        "santiago.": "SANTA MARIA DEL ORO DURANGO",
     }
 
     materia = match_dict[doc_type]
@@ -407,15 +407,15 @@ def parse_field_b(b_field):
     :return:
     """
     months = {
-        "enero": "1",             # "January",
-        "febrero": "2",           # "February",
-        "marzo": "3",             # "March",
-        "abril": "4",             # "April",
-        "mayo": "5",              # "May",
-        "junio": "6",             # "June",
-        "julio": "7",             # "July",
-        "agosto": "8",            # "August",
-        "septiembre": "9",        # "September",
+        "enero": "01",             # "January",
+        "febrero": "02",           # "February",
+        "marzo": "03",             # "March",
+        "abril": "04",             # "April",
+        "mayo": "05",              # "May",
+        "junio": "06",             # "June",
+        "julio": "07",             # "July",
+        "agosto": "08",            # "August",
+        "septiembre": "09",        # "September",
         "octubre": "10",          # "October",
         "noviembre": "11",        # "November",
         "diciembre": "12",        # "December",
@@ -780,11 +780,13 @@ def parsing_pdf(pdf_path):
 
                 # Removing double spaces and set UPPER case
                 for rec in rec_list:
-                    for key in rec.keys():
-                        if type(rec[key]) == str:
-                            rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
-                            rec.update({key: replace_wrong_recognitions(rec[key])})
-
+                    for key in record.keys():
+                        if rec.get(key) is not None:
+                            if type(rec[key]) == str:
+                                rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
+                                rec.update({key: replace_wrong_recognitions(rec[key])})
+                        else:
+                            rec[key] = ""
                     pdf_recs_list.append(rec)
 
             break
@@ -802,17 +804,20 @@ def parsing_pdf(pdf_path):
 
             # Exit if threshold mode recognition failed too
             if custom_dpi > 700:
+                print(f"{Tags.LightYellow}[ERROR] Recognition failed{Tags.ResetAll}")
                 exit_key = True
 
-    # # Save to json file
-    # if not exit_key:
-    #     json_file_path = pdf_path[:-3] + "json"
-    #     print("Saving to:", json_file_path, end=" .... ")
-    #     with open(json_file_path, "w") as json_file:
-    #         json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
-    #     print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
-    # else:
-    #     print("[ERROR] Saving error")
+    # Save to json file
+    if not exit_key:
+        json_file_path = pdf_path[:-3] + "json"
+        print("Saving to:", json_file_path, end=" .... ")
+        with open(json_file_path, "w") as json_file:
+            json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
+        print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
+    else:
+        print(f"{Tags.LightYellow}[ERROR] Saving error{Tags.ResetAll}")
+        args["failed_processing"] += 1
+        print("Number of unprocessed files: ", args["failed_processing"])
 
     return pdf_recs_list
 
@@ -900,6 +905,7 @@ def start_app():
     except KeyboardInterrupt:
         print("EXIT ... ")
         dan.remove_dirs()
+        print("Number of unprocessed files: ", args["failed_processing"])
         sys.exit()
 
 

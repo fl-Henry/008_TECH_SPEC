@@ -64,9 +64,12 @@ def main():
         '/home/user_name/PycharmProjects/008_TECH_SPEC/temp/lerdo/1732020_Civ1GP.pdf'
     ]
 
-    print(collection.find())
-    for item in collection.find():
-        print(item)
+    # print(collection.find())
+    # for item in collection.find():
+    #     print(item)
+
+
+    print(int("09"))
 
 def anchor_for_navigate():
     pass
