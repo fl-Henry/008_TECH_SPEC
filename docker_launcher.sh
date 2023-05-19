@@ -57,7 +57,7 @@ docker run -d --network mongo --network-alias db -v $(pwd)/db_data:/data/db --na
 
 # Start app
 printf "\n\033[93m%s\033[0m\n" "Start app"
-docker run -it --rm --network mongo tech_spec_local python3 app.py $str_param
+docker run -it --rm --network mongo milanzekovic/tech_spec python3 app.py $str_param
 
 docker stop mongodb_img >/dev/null
 
