@@ -12,7 +12,7 @@ from print_tags import Tags
 from app import url_generator, parse_field_c, parse_field_e, parse_field_d, parse_field_b
 from general_methods import random_dd_mm_yyy, replace_chars
 
-tests_list = ["08"]
+tests_list = ["03"]
 
 
 # 01
@@ -159,6 +159,13 @@ def tests_parce_field_c():
             "1149/2017 0333/2010 00929/2011-II",
             "1149/2017 00929/2011-II 007CC/2016",
             "00929/2011-II 0333/2010 007CC/2016",
+            "1110C/2019 327/2018",
+            "224CC/2019 759/2018",
+            "28CC/2020 268/2018",
+            "32CC/2020 446/2018",
+            "37CC/2020 89/2019",
+            "42CC/2020 169/2019",
+            "49CC/2020 386/2018",
         ]
         for c_field in c_fields:
             print(c_field)
@@ -178,7 +185,6 @@ def tests_parce_field_c():
 def tests_parse_field_e():
     if "04" in tests_list:
         start_time = datetime.utcnow()
-        counter = 0
         print(f"\n{Tags.Blue}======= TIMESTAMP UTC ======= {datetime.utcnow()} ======={Tags.ResetAll}")
 
         e_fields = [
@@ -211,6 +217,9 @@ def tests_parse_field_e():
             "MARIA ELIZABETH QUINTERO AGUILAR",
             "YOLANDA HERRERA VAZQUEZ",
             "MARÍA ANTONIA HEIM SORIA - CAREN JANNETE RODRÍGUEZ CHACÓN (SE DELARA INCOMPTENTE LA SALA SE REMITE ALA COLEGIADA. ( PRIMERA SALA ))",
+            "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES (INFONAVIT) Vs YADIRA ANGELES LANDA",
+            "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES (SE DELARA INCOMPTENTE LA SALA SE REMITE ALA COLEGIADA. ( PRIMERA SALA )) Vs YADIRA ANGELES LANDA",
+            "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES (INFONAVIT) (NUEVO)",
         ]
 
         for e_field in e_fields:
@@ -222,13 +231,13 @@ def tests_parse_field_e():
         end_time = datetime.utcnow()
         work_time = end_time - start_time
         print("\nWorking time of the test:", work_time)
-        print(f"Test completed: {counter}/{2} is done")
+        print(f"Test completed")
         if "EAT" in tests_list:
             sys.exit(0)
 
 
 # 05
-def teste_parse_field_d():
+def tests_parse_field_d():
     if "05" in tests_list:
         start_time = datetime.utcnow()
         counter = 0
@@ -442,7 +451,7 @@ if __name__ == '__main__':
     tests_replace_chars()                   # 02
     tests_parce_field_c()                   # 03
     tests_parse_field_e()                   # 04
-    teste_parse_field_d()                   # 05
+    tests_parse_field_d()                   # 05
     tests_remove_repeated_char()            # 06
     tests_find_number_indexes()             # 07
     tests_parse_field_b()                   # 08

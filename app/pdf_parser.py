@@ -74,6 +74,44 @@ def get_data_df_inside_ltrbbox(ltrbbox, data_df, margin=None):
     return df_to_return
 
 
+def get_data_df_outside_ltrbbox(ltrbbox, data_df, margin=None):
+    """
+            Getting DataFrame with rows whose coordinates are outside the ltrbbox
+        :param ltrbbox: list[float]   | [<left_coordinate>, <top_coordinate>, <right_coordinate>, <bottom_coordinate>]
+        :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
+        :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
+        :return:
+        """
+    ltrbbox = [float(x) for x in ltrbbox]
+
+    # Recalculating ltrbbox
+    if margin is not None:
+        ltrbbox = add_margin_to_ltrbbox(ltrbbox, margin)
+
+    # Getting rows inside the ltrbbox
+    df_to_return = pd.DataFrame()
+    for index, row in data_df.iterrows():
+
+        # Conditions
+        if_left = float(row["left"]) >= ltrbbox[0]
+        if_top = float(row["top"]) >= ltrbbox[1]
+        if row.get("right") is not None:
+            if_right = float(row["right"]) <= ltrbbox[2]
+        else:
+            if_right = float(row["left"]) + float(row["width"]) <= ltrbbox[2]
+
+        if row.get("bottom") is not None:
+            if_bottom = float(row["bottom"]) <= ltrbbox[3]
+        else:
+            if_bottom = float(row["top"]) + float(row["height"]) <= ltrbbox[3]
+
+        if not (if_left and if_top and if_right and if_bottom):
+            row = row.to_frame().T.reset_index(drop=True)
+            df_to_return = pd.concat([df_to_return, row], ignore_index=True)
+
+    return df_to_return
+
+
 def get_text_inside_ltrbbox(ltrbbox, data_df, margin=None):
     """
         Getting list["text"] that inside the ltrbbox
@@ -120,16 +158,12 @@ def get_rb_columns(page_data_df):
         else:
             columns_names.append(col)
 
-    # Changing type of some columns
-    types_dict = {col: "int32" for col in ["left", "top", "width", "height"]}
-    page_data_df = page_data_df.astype(types_dict)
-
     page_data_df = page_data_df.sort_values(by=["top"], ascending=True).reset_index(drop=True)
 
     # rows bottom coordinates list // to round bottom coordinates and create a readable file structure
     bottom_list = [0]
 
-    # average height of rows/words
+    # Calculating average height of rows/words
     avg_height = sum([int(x) for x in page_data_df.tail(20)["height"]]) // len(page_data_df.tail(20)["height"])
     avg_height = avg_height * 1.2 // 2  # to comparison // 1.2 for include space between rows
 
@@ -252,6 +286,27 @@ def find_all_near_words(df_1, table_data_df, space_px_len, direction="R"):
     return df_1
 
 
+def remove_ad_block(page_data_df):
+    # Changing type of some columns
+    types_dict = {col: "int32" for col in ["left", "top", "width", "height"]}
+    page_data_df = page_data_df.astype(types_dict)
+
+    # Calculating average height of rows/words
+    avg_height = sum([int(x) for x in page_data_df.tail(20)["height"]]) // len(page_data_df.tail(20)["height"])
+    ad_block = page_data_df.iloc[1:][page_data_df["height"].iloc[1:] > 5 * avg_height]
+
+    if len(ad_block) > 0:
+        ltrbbox = [
+            ad_block["left"].iloc[0],
+            ad_block["top"].iloc[0],
+            ad_block["left"].iloc[0] + ad_block["width"].iloc[0],
+            ad_block["top"].iloc[0] + ad_block["height"].iloc[0]
+        ]
+        page_data_df = get_data_df_outside_ltrbbox(ltrbbox, page_data_df)
+
+    return page_data_df
+
+
 def get_page_data_df(page_data, tesseract_config=None):
 
     # Page recognition with tesseract
@@ -270,9 +325,14 @@ def get_page_data_df(page_data, tesseract_config=None):
     )
     page_data_df.iloc[0]["text"] = "page_size"
 
+    # Drop level page_num block_num par_num line_num word_num
+    page_data_df = page_data_df.drop(["level", "page_num", "block_num", "par_num", "line_num", "word_num", "conf"], axis=1)
+
     # Drop all None or "" rows
     in_list = ['', "None", "NONE", None, " "]
     page_data_df = page_data_df.loc[~page_data_df["text"].isin(in_list)].reset_index(drop=True)
+
+    page_data_df = remove_ad_block(page_data_df)
 
     # Getting right and bottom coordinates for each row and rounding bottom coordinates
     page_data_df = get_rb_columns(page_data_df)
@@ -352,7 +412,7 @@ def recalculate_columns_params(columns_df, space_px_len, table_data_df):
         col["left"], col["right"], col["width"] = get_column_width(col, space_px_len, table_data_df)
         if index < len(columns_df) - 1:
             if col["right"] > columns_df.iloc[index + 1]["left"]:
-                col["right"] = columns_df.iloc[index + 1]["left"]
+                col["right"] = columns_df.iloc[index + 1]["left"] - space_px_len
                 col["width"] = col["right"] - col["left"]
         col = col.to_frame().T.reset_index(drop=True)
         df_1 = pd.concat([df_1, col], ignore_index=True)
@@ -528,11 +588,22 @@ def find_rows(table_data_df, space_px_len):
 def get_table_data(columns_df, rows_df, data_df):
     df_to_return = columns_df["text"].to_frame().T.reset_index(drop=True)
 
+    # Calculating average height of rows/words
+    avg_height = sum([int(x) for x in data_df.tail(20)["height"]]) // len(data_df.tail(20)["height"])
+
     for row_index, row in rows_df[1:].iterrows():
         df_row = pd.Series()
         for col_index, col in columns_df.iterrows():
             ltrbbox = [col["left"], row["top"], col["right"], row["bottom"]]
-            text = get_text_inside_ltrbbox(ltrbbox, data_df, margin=[0.02, 0.02])
+
+            # Calculating margin
+            if 0.01 * row['height'] > avg_height * 0.75:
+                margin = [0.01, avg_height / row['height'] * 0.75]
+            else:
+                margin = [0.01, 0.01]
+
+            # Getting cell text
+            text = get_text_inside_ltrbbox(ltrbbox, data_df, margin=margin)
             if len(text) > 0:
                 text = " ".join(text)
             else:
@@ -544,11 +615,24 @@ def get_table_data(columns_df, rows_df, data_df):
     return df_to_return
 
 
-def table_from_data_df(data_df: pd.DataFrame):
+def check_row_recognition(data_df, table_check_strs, rows_count):
+    data_df_has_check_str = False
+    for index, row in data_df.iterrows():
+        for table_check_str in table_check_strs:
+            if table_check_str.upper() in row["text"].upper():
+                data_df_has_check_str = True
+        if data_df_has_check_str:
+            break
+
+    if rows_count == 0 and data_df_has_check_str:
+        raise Exception("[ERROR] check_row_recognition")
+
+
+def table_from_data_df(data_df: pd.DataFrame, table_check_strs):
     """
 
     :param data_df:               | DataFrame with columns ["left", "top", "width", "height", "right", "bottom", "text"]
-    :param margin: list[float]    | [0.01, 0.02] -> margin_x = 1%, margin_y = 2%
+    :param table_check_strs: str  | string that is inside the data_df
     :return:
     """
     # Calculating spaces between words
@@ -565,6 +649,8 @@ def table_from_data_df(data_df: pd.DataFrame):
 
     # Finding rows
     rows_df = find_rows(data_df, space_px_len)
+
+    check_row_recognition(data_df, table_check_strs, len(rows_df) - 1)
 
     # Getting data for each cell
     table_df = get_table_data(columns_df, rows_df, data_df)

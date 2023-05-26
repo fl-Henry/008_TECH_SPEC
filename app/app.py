@@ -119,6 +119,49 @@ def get_all_files_by_extension(dir_to_find: str, extension: str):
     return list_of_pdfs
 
 
+def dela_to_de_la(proc_str: str):
+    """
+        fixing wrong recognition of "DE LA" as "DELA"
+    :param proc_str:
+    :return:
+    """
+    dela_words = [
+        "delacion",
+        "delantal",
+        "delante",
+        "delantera",
+        "delantero",
+        "delatar",
+    ]
+    str_to_return = ""
+    last_char_index = 0
+    for char_index in range(len(proc_str)):
+        str_4char = proc_str[char_index:char_index + 4]
+        if str_4char.lower() == "dela":
+            match_key = False
+            for check_word in dela_words:
+                may_be_word = proc_str[char_index:char_index + len(check_word)]
+                if may_be_word.lower() == check_word.lower():
+                    match_key = True
+            if not match_key:
+                if proc_str[char_index - 1] == " ":
+                    str_to_return += proc_str[last_char_index:char_index] + "DE LA "
+                else:
+                    str_to_return += proc_str[last_char_index:char_index] + " DE LA "
+                last_char_index = char_index + 5
+    str_to_return += proc_str[last_char_index:]
+    return str_to_return
+
+
+def remove_spec_chars(proc_str: str):
+    chars_to_remove = ["_", "=", "|", u'\u00b0']
+    str_to_return = ""
+    for char in proc_str:
+        if char not in chars_to_remove:
+            str_to_return += char
+    return str_to_return
+
+
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
 ...
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
@@ -132,7 +175,8 @@ class ServerIsDown(Exception):
 def check_date(files_date):
 
     # Creating rec_index from db
-    mdbh = MongodbHandler(host="mongodb://db:27017/", db_name="raw", collection_name="juzgados")
+    # mdbh = MongodbHandler(host="mongodb://db:27017/", db_name="raw", collection_name="juzgados")
+    mdbh = MongodbHandler(host="mongodb://127.0.0.1:27017/", db_name="raw", collection_name="juzgados")
     db_rec_indexes = mdbh.collection.find({}, {"_id": 0, "fecha": 1})
     db_rec_indexes = [x["fecha"] for x in db_rec_indexes]
 
@@ -146,7 +190,7 @@ def check_date(files_date):
     return False
 
 
-def replace_wrong_recognitions(in_str):
+def replace_wrong_recognitions(in_str: str):
     replace_dict = {
         "‘TER.": "1ER.",
         "TER.": "1ER.",
@@ -380,10 +424,10 @@ def get_materia(doc_type):
         "nazas.": "NAZAS DURANGO",
         "cuencame.": "CUENCAME DURANGO",
         "sanjuandelrio.": "SAN JUAN DEL RIO DURANGO",
-        "elsalto.": "GUADALUPE VICTORIA DURANGO",
-        "santamariadeloro.": "SANTIAGO PAPASQUIARO DURANGO",
-        "victoria.": "EL SALTO PUEBLO NUEVO DURANGO",
-        "santiago.": "SANTA MARIA DEL ORO DURANGO",
+        "victoria.": "GUADALUPE VICTORIA DURANGO",
+        "santiago.": "SANTIAGO PAPASQUIARO DURANGO",
+        "elsalto.": "EL SALTO PUEBLO NUEVO DURANGO",
+        "santamariadeloro.": "SANTA MARIA DEL ORO DURANGO",
     }
 
     materia = match_dict[doc_type]
@@ -453,6 +497,13 @@ def parse_field_b(b_field):
 
 
 def parse_field_c(field_c_string):
+    """
+        Data example: 01215/2010
+                      1276/2019-IV
+                      222/2020-III
+    :param field_c_string:
+    :return:
+    """
     c_list = [x.strip().split("/") for x in field_c_string.split()]
     for index in range(len(c_list)):
         if len(c_list[index]) == 1:
@@ -490,13 +541,20 @@ def parse_field_c(field_c_string):
 
 
 def parse_field_e(e_field_string):
-    """"""
     """
-    # TODO: 1 - G = "(*)" or "(*(*))" and remove from string
-    #       2 - locate of "Vs"
-    #           2.1 if there is not "Vs" than E = remaining string
-    #       3 - E = string before "Vs"
-    #       4 - F = string after "Vs"
+        Data example: INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA
+                      PARA LOS TRABAJADORES (INFONAVIT) Vs YADIRA
+                      ANGELES LANDA
+
+    :param e_field_string:
+    :return:
+    """
+    """
+    # 1 - G = "(*)" or "(*(*))" and remove from string
+    # 2 - locate of "Vs"
+    #     2.1 if there is not "Vs" than E = remaining string
+    # 3 - E = string before "Vs"
+    # 4 - F = string after "Vs"
     patterns = [
         "(*)",      # G // also (*(*))
         "<-- Vs",   # E
@@ -504,16 +562,46 @@ def parse_field_e(e_field_string):
     ]
     """
 
-    # G = "( -->"
-    g_field_location = gm.find_string_indexes(e_field_string, "(")
-    if g_field_location is not None:
-        g_field = e_field_string[g_field_location[0]:]
-        e_field_string = e_field_string[:g_field_location[0]]
+    # getting brackets indexes
+    open_bracket_indexes = gm.find_all_chars(e_field_string, "(")
+    close_bracket_indexes = gm.find_all_chars(e_field_string, ")")
+    brackets_indexes = np.append([[0, x] for x in open_bracket_indexes], [[1, x] for x in close_bracket_indexes], axis=0)
+    if len(brackets_indexes) > 0:
+        ind = np.argsort(brackets_indexes[:, 1])
+        brackets_indexes = brackets_indexes[ind]
+
+        # Find last brackets indexes
+        open_index = None
+        if brackets_indexes[-1][0] == 1:
+            close_index = brackets_indexes[-1][1]
+        else:
+            close_index = None
+        enc_counter = 0
+        for bracket in reversed(brackets_indexes):
+            if bracket[0] == 0:
+                enc_counter -= 1
+            else:
+                enc_counter += 1
+
+            # Break the loop if enc_counter is less than 1
+            if enc_counter < 1:
+                open_index = bracket[1]
+                break
+
+        if open_index is not None:
+            if close_index is not None:
+                g_field = e_field_string[open_index:close_index + 1]
+                e_field_string = e_field_string[:open_index] + e_field_string[close_index + 1:]
+            else:
+                g_field = e_field_string[open_index:]
+                e_field_string = e_field_string[:open_index]
+        else:
+            g_field = ""
     else:
         g_field = ""
 
     # E = "<-- Vs"  //  F = "Vs -->"
-    vs_location = gm.find_string_indexes(e_field_string.upper(), "Vs".upper())
+    vs_location = gm.find_string_indexes(e_field_string.upper(), "Vs ".upper())
     if vs_location is not None:
         e_field = e_field_string[:vs_location[0]]
         f_field = e_field_string[vs_location[0] + 3:]
@@ -564,12 +652,7 @@ def parse_header(page_data_df):
     rec_header = {}
 
     # Getting "No." row for bottom coordinate
-    # pd.set_option("display.max_rows", None)
-    # print(page_data_df)
-    # try:
     no_row = page_data_df.loc[page_data_df["text"] == "No.".upper()].reset_index(drop=True).iloc[0]
-    # except IndexError:
-    #     no_row = page_data_df.loc[page_data_df["text"] == "EXPEDIENTE".upper()].reset_index(drop=True).iloc[0]
 
     # Getting page_size_row for top, left and right coordinates
     page_size_row = page_data_df.iloc[0]
@@ -589,7 +672,7 @@ def parse_header(page_data_df):
     if start_pos is not None:
         start_pos = start_pos[1]
     else:
-        raise IndexError("[ERROR] aux() > start_pos is not None")
+        raise IndexError("[ERROR] aux() > start_pos is None")
     end_pos = gm.find_string_indexes(before_dictados_text, "LISTA DE ACUERDOS".upper())
     if end_pos is not None:
         end_pos = end_pos[0]
@@ -646,12 +729,14 @@ def aux(page_data_df):
 
     # Getting data_df for table
     table_ltrbbox = [page_size_row["left"], no_row["top"], page_size_row["right"], bottom]
-    table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.01])
+    table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.005])
 
     # Get table
-    table_df = pp.table_from_data_df(table_df)
+    table_df = pp.table_from_data_df(table_df, table_check_strs=["/20", "S/N"])
     result = table_df.iloc[1:].to_json(orient="values")
     table_json = json.loads(result)
+
+    print(table_df)
 
     # Write data in records
     list_of_records = []
@@ -670,49 +755,31 @@ def aux(page_data_df):
 def parsing_pdf(pdf_path):
 
     record = {
-        "actor": "",                         # "E"
-        "demandado": "",                     # "F"
-        "entidad": "",                       # "+"
-        "expediente": "",                    # "C"
-        "fecha": "",                         # "B"
-        "fuero": "",                         # "d"
-        "juzgado": "",                       # "A"
-        "tipo": "",                          # "D"
-        "acuerdos": "",                      # "G"
-        "monto": "",                         # " "
-        "fecha_presentacion": "",            # " "
-        "actos_reclamados": "",              # " "
-        "actos_reclamados_especificos": "",  # " "
-        "Naturaleza_procedimiento": "",      # " "
-        "Prestación_demandada": "",          # " "
-        "Organo_jurisdiccional_origen": "",  # "J"
-        "expediente_origen": "",             # "I"
-        "materia": "",                       # "H"
-        "submateria": "",                    # " "
-        "fecha_sentencia": "",               # " "
-        "sentido_sentencia": "",             # " "
-        "resoluciones": "",                  # " "
-        "origen": "",                        # "d"
-        "fecha_insercion": "",               # "+"
-        "fecha_tecnica": "",                 # "+"
-    }
-
-    default_record = {
-        "fuero": "COMUN",
-        "monto": "",
-        "fecha_presentacion": "",
-        "actos_reclamados": "",
-        "actos_reclamados_especificos": "",
-        "Naturaleza_procedimiento": "",
-        "Prestación_demandada": "",
-        "Organo_jurisdiccional_origen": "",
-        "expediente_origen": "",
-        "materia": "",
-        "submateria": "",
-        "fecha_sentencia": "",
-        "sentido_sentencia": "",
-        "resoluciones": "",
-        "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO",
+        "actor": "",                                        # "E"
+        "demandado": "",                                    # "F"
+        "entidad": "",                                      # "+"
+        "expediente": "",                                   # "C"
+        "fecha": "",                                        # "B"
+        "fuero": "COMUN",                                   # "d"
+        "juzgado": "",                                      # "A"
+        "tipo": "",                                         # "D"
+        "acuerdos": "",                                     # "G"
+        "monto": "",                                        # " "
+        "fecha_presentacion": "",                           # " "
+        "actos_reclamados": "",                             # " "
+        "actos_reclamados_especificos": "",                 # " "
+        "Naturaleza_procedimiento": "",                     # " "
+        "Prestacion_demandada": "",                         # " "
+        "Organo_jurisdiccional_origen": "",                 # "J"
+        "expediente_origen": "",                            # "I"
+        "materia": "",                                      # "H"
+        "submateria": "",                                   # " "
+        "fecha_sentencia": "",                              # " "
+        "sentido_sentencia": "",                            # " "
+        "resoluciones": "",                                 # " "
+        "origen": "PODER JUDICIAL DEL ESTADO DE DURANGO",   # "d"
+        "fecha_insercion": "",                              # "+"
+        "fecha_tecnica": "",                                # "+"
     }
 
     # Doc type // part of filename
@@ -721,35 +788,36 @@ def parsing_pdf(pdf_path):
 
     # Parsing of all pages
     pdf_recs_list = []
-    custom_dpi = 320
     exit_key = False
-    threshold_mode_key = False
+    page_count = 0
+    custom_dpi = 620
+    mode_psm_3 = False
     while not exit_key:
-        tesseract_config = None
         try:
             doc = convert_from_path(pdf_path, dpi=custom_dpi, thread_count=2)
             for page_number, page_data in enumerate(doc):
-                # if page_number + 1 != 1:
+                if page_number < page_count:
+                    continue
+                # if page_number + 1 != 2:
                 #     continue
 
                 # Threshold recognition mode
-                if threshold_mode_key:
-                    dan.files.update({"threshold": f"{dan.dirs['images']}threshold.png"})
-                    file_path = dan.files["threshold"]
-                    page_data.save(file_path)
-                    img = cv.imread(file_path, cv.IMREAD_GRAYSCALE)
-                    ret, thresh1 = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
+                dan.files.update({"threshold": f"{dan.dirs['images']}threshold.png"})
+                file_path = dan.files["threshold"]
+                page_data.save(file_path)
+                img = cv.imread(file_path, cv.IMREAD_GRAYSCALE)
+                ret, thresh1 = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
+                cv.imwrite(file_path, thresh1)
+                page_data = np.array(thresh1)
 
-                    page_data = np.array(thresh1)
+                # Choosing the psm mode
+                if mode_psm_3:
+                    tesseract_config = "--psm 3"
+                else:
                     tesseract_config = "--psm 4"
 
-                    # Getting page data as DataFrame
-                    page_data_df = pp.get_page_data_df(page_data, tesseract_config=tesseract_config)
-
-                # Default recognition mode
-                else:
-                    # Getting page data as DataFrame
-                    page_data_df = pp.get_page_data_df(page_data)
+                # Getting page data as DataFrame
+                page_data_df = pp.get_page_data_df(page_data, tesseract_config=tesseract_config)
 
                 # Getting table data as fields A B C D E
                 rec_list = aux(page_data_df)
@@ -776,35 +844,45 @@ def parsing_pdf(pdf_path):
                     rec_list[rec_index].update(parsed_d)
                     del rec_list[rec_index]["D"]
 
-                    # + default records
-                    rec_list[rec_index].update(default_record)
-
                 # Removing double spaces and set UPPER case
                 for rec in rec_list:
+                    if rec["expediente"] == "":
+                        raise ValueError('[ERROR] rec["expediente"] == ""')
+                    if rec["tipo"] == "":
+                        raise ValueError('[ERROR] rec["tipo"] == ""')
+
+                    rec_to_append = {}
                     for key in record.keys():
                         if rec.get(key) is not None:
                             if type(rec[key]) == str:
-                                rec.update({key: gm.remove_repeated_char(rec[key].upper().strip())})
-                                rec.update({key: replace_wrong_recognitions(rec[key])})
+                                clean_str = replace_wrong_recognitions(rec[key].upper().strip())
+                                clean_str = dela_to_de_la(clean_str)
+                                clean_str = remove_spec_chars(clean_str)
+                                clean_str = gm.remove_repeated_char(clean_str)
+                                # clean_str = clean_str.encode("utf-8")
+                                rec_to_append.update({key: clean_str})
+                            else:
+                                rec_to_append.update({key: rec[key]})
                         else:
-                            rec[key] = ""
-                    pdf_recs_list.append(rec)
+                            rec_to_append.update({key: record[key]})
+                    pdf_recs_list.append(rec_to_append)
 
+                page_count += 1
+                custom_dpi = 620
+                mode_psm_3 = False
             break
         except Exception as _ex:
-
             # Increase image dpi
             custom_dpi += 20
             print(f"[WARNING] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
 
-            # Enable threshold mode if default recognition failed
-            if custom_dpi > 400 and not threshold_mode_key:
+            if custom_dpi >= 700 and not mode_psm_3:
+                print("mode --psm 3 is enabled | custom_dpi = 620 | Next attempt")
                 custom_dpi = 620
-                threshold_mode_key = True
-                print(f"[WARNING] Recognition failed > threshold mode on | custom_dpi = {custom_dpi} | Next attempt")
+                mode_psm_3 = True
 
             # Exit if threshold mode recognition failed too
-            if custom_dpi > 700:
+            if custom_dpi >= 700 and mode_psm_3:
                 print(f"{Tags.LightYellow}[ERROR] Recognition failed{Tags.ResetAll}")
                 exit_key = True
 
@@ -869,7 +947,7 @@ def scrape_date(files_date):
                 delete_all_duplicates()
 
             # Delete temp folder
-            dan.remove_dirs()
+            # dan.remove_dirs()
             break
 
         except ServerIsDown:
@@ -886,6 +964,7 @@ def start_app():
 
     print(args["stdout"])
     print(dan)
+    # dan.remove_dirs()
 
     # Getting all dates between star_date and end_date
     dates_list = gm.dates_between(args["start_date"], args["end_date"])
@@ -905,7 +984,7 @@ def start_app():
 
     except KeyboardInterrupt:
         print("EXIT ... ")
-        dan.remove_dirs()
+        # dan.remove_dirs()
         print("Number of unprocessed files: ", args["failed_processing"])
         sys.exit()
 

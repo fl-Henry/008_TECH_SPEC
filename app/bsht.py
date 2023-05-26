@@ -25,6 +25,83 @@ collection = db["juzgados"]
 
 
 
+def parse_field_e(e_field_string):
+    """
+        Data example: INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA
+                      PARA LOS TRABAJADORES (INFONAVIT) Vs YADIRA
+                      ANGELES LANDA
+
+    :param e_field_string:
+    :return:
+    """
+    """
+    # 1 - G = "(*)" or "(*(*))" and remove from string
+    # 2 - locate of "Vs"
+    #     2.1 if there is not "Vs" than E = remaining string
+    # 3 - E = string before "Vs"
+    # 4 - F = string after "Vs"
+    patterns = [
+        "(*)",      # G // also (*(*))
+        "<-- Vs",   # E
+        "Vs -->",   # F
+    ]
+    """
+
+    # getting brackets indexes
+    open_bracket_indexes = gm.find_all_chars(e_field_string, "(")
+    close_bracket_indexes = gm.find_all_chars(e_field_string, ")")
+    brackets_indexes = np.append([[0, x] for x in open_bracket_indexes], [[1, x] for x in close_bracket_indexes], axis=0)
+    if len(brackets_indexes) > 0:
+        ind = np.argsort(brackets_indexes[:, 1])
+        brackets_indexes = brackets_indexes[ind]
+
+        # Find last brackets indexes
+        open_index = None
+        if brackets_indexes[-1][0] == 1:
+            close_index = brackets_indexes[-1][1]
+        else:
+            close_index = None
+        enc_counter = 0
+        for bracket in reversed(brackets_indexes):
+            if bracket[0] == 0:
+                enc_counter -= 1
+            else:
+                enc_counter += 1
+
+            # Break the loop if enc_counter is less than 1
+            if enc_counter < 1:
+                open_index = bracket[1]
+                break
+
+        if open_index is not None:
+            if close_index is not None:
+                g_field = e_field_string[open_index:close_index + 1]
+                e_field_string = e_field_string[:open_index] + e_field_string[close_index + 1:]
+            else:
+                g_field = e_field_string[open_index:]
+                e_field_string = e_field_string[:open_index]
+        else:
+            g_field = ""
+    else:
+        g_field = ""
+
+    # E = "<-- Vs"  //  F = "Vs -->"
+    vs_location = gm.find_string_indexes(e_field_string.upper(), "Vs ".upper())
+    if vs_location is not None:
+        e_field = e_field_string[:vs_location[0]]
+        f_field = e_field_string[vs_location[0] + 3:]
+    else:
+        e_field = e_field_string
+        f_field = ""
+
+    dict_to_return = {
+        "actor": e_field,
+        "demandado": f_field,
+        "acuerdos": g_field,
+    }
+    return dict_to_return
+
+
 
 def main():
     pass
@@ -64,12 +141,16 @@ def main():
         '/home/user_name/PycharmProjects/008_TECH_SPEC/temp/lerdo/1732020_Civ1GP.pdf'
     ]
 
-    # print(collection.find())
-    # for item in collection.find():
-    #     print(item)
+    str_lst = [
+        " ORDINARIO CIVIL (FAMILIAR)  ",
+        "DELGADO REYES VS",
+        " ORDINARIO CIVIL (FAMILIAR",
+        "TORRES LOPEZ A BIENES DE: NAHUL LUNA Y SENTENCIA)",
+    ]
+    for str_ in str_lst:
+        print(str_)
+        print(parse_field_e(str_))
 
-
-    print(int("09"))
 
 def anchor_for_navigate():
     pass
