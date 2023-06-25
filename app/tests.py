@@ -7,12 +7,13 @@ from datetime import datetime
 
 # Custom imports
 import general_methods as gm
+import app
 
 from print_tags import Tags
 from app import url_generator, parse_field_c, parse_field_e, parse_field_d, parse_field_b
 from general_methods import random_dd_mm_yyy, replace_chars
 
-tests_list = ["03"]
+tests_list = ["04"]
 
 
 # 01
@@ -220,11 +221,12 @@ def tests_parse_field_e():
             "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES (INFONAVIT) Vs YADIRA ANGELES LANDA",
             "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES (SE DELARA INCOMPTENTE LA SALA SE REMITE ALA COLEGIADA. ( PRIMERA SALA )) Vs YADIRA ANGELES LANDA",
             "INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA PARA LOS TRABAJADORES (INFONAVIT) (NUEVO)",
+            "MA AGUSTINA ORTIZ ESTRADA Vs"
         ]
 
         for e_field in e_fields:
-            print(e_field)
-            print(parse_field_e(e_field))
+            print(e_field.upper())
+            print(parse_field_e(e_field.upper()))
             print()
             # break
 
@@ -446,6 +448,124 @@ def tests_parse_field_b():
             sys.exit(0)
 
 
+# 09
+def tests_remove_spec_chars():
+    if "09" in tests_list:
+        start_time = datetime.utcnow()
+        counter = 0
+        print(f"\n{Tags.Blue}======= TIMESTAMP UTC ======= {datetime.utcnow()} ======={Tags.ResetAll}")
+
+        strs = [
+            "sfgsdf \u00b0sbsdb",
+            "sfgsdf\u00b0sbsdb",
+            "sfgsdf\u00b0 sbsdb",
+            "sfgsdf \u201csbsdb",
+            "sfgsdf\u201csbsdb",
+            "sfgsdf\u201c sbsdb",
+            "sfgsdf \"sbsdb",
+            "sfgsdf\"sbsdb",
+            "sfgsdf\" sbsdb",
+            "sfgsdf |sbsdb",
+            "sfgsdf|sbsdb",
+            "sfgsdf| sbsdb",
+            "sfgsdf =sbsdb",
+            "sfgsdf=sbsdb",
+            "sfgsdf= sbsdb",
+            "sfgsdf _sbsdb",
+            "sfgsdf_sbsdb",
+            "sfgsdf_ sbsdb",
+        ]
+
+        for str_ in strs:
+            print(str_)
+            print(app.remove_spec_chars(str_))
+            print()
+
+        end_time = datetime.utcnow()
+        work_time = end_time - start_time
+        print("\nWorking time of the test:", work_time)
+        print(f"Test completed: {counter}/{2} is done")
+        if "EAT" in tests_list:
+            sys.exit(0)
+
+
+# 10
+def tests_dela_to_de_la():
+    if "10" in tests_list:
+        start_time = datetime.utcnow()
+        counter = 0
+        print(f"\n{Tags.Blue}======= TIMESTAMP UTC ======= {datetime.utcnow()} ======={Tags.ResetAll}")
+
+        dela_words = [
+            "delacion",
+            "delantal",
+            "delante",
+            "delantera",
+            "delantero",
+            "delatar",
+            "delectatio",
+            "delecto",
+            "delego",
+            "deleo",
+        ]
+
+        strs = [
+            "defadeladsfjanv;",
+            "defa deladsfjanv;",
+            "defadela dsfjanv;",
+            "defa dela dsfjanv;",
+            "defa Dela dsfjanv;",
+            "defa DeLa dsfjanv;",
+            "defa DeLadsfjanv;",
+            "defaDeLadsfjanv;  defaDeLadsfjanv defaDeLadsfjanv defa DeLa dsfjanv defa DeLadsfjanv",
+            "defadelodsfjanv;",
+            "defa delodsfjanv;",
+            "defadelo dsfjanv;",
+            "defa delo dsfjanv;",
+            "defa Delo dsfjanv;",
+            "defa DeLo dsfjanv;",
+            "defa DeLodsfjanv;",
+            "defaDeLodsfjanv;  defaDeLodsfjanv defaDeLodsfjanv defa DeLo dsfjanv defa DeLodsfjanv",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl Delavasf",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl Delavasf",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl Delavasf",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl Delavasf",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]}asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl Delavasf",
+            f"defa Delo dsfjanv; {dela_words[random.randint(0, len(dela_words) - 1)]} asgashgl {dela_words[random.randint(0, len(dela_words) - 1)]}",
+        ]
+
+        for str_ in strs:
+            print(str_)
+            print(app.dela_to_de_la(str_))
+            print()
+
+        end_time = datetime.utcnow()
+        work_time = end_time - start_time
+        print("\nWorking time of the test:", work_time)
+        print(f"Test completed: {counter}/{2} is done")
+        if "EAT" in tests_list:
+            sys.exit(0)
+
+
 if __name__ == '__main__':
     tests_url_generator()                   # 01
     tests_replace_chars()                   # 02
@@ -455,3 +575,5 @@ if __name__ == '__main__':
     tests_remove_repeated_char()            # 06
     tests_find_number_indexes()             # 07
     tests_parse_field_b()                   # 08
+    tests_remove_spec_chars()               # 09
+    tests_dela_to_de_la()                   # 10

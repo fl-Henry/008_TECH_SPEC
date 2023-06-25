@@ -51,6 +51,9 @@ from mongodb_handler import MongodbHandler
 args = gm.arg_parser()
 dan = gm.DaNHandler()
 
+DB_HOST = "mongodb://db:27017/"
+# DB_HOST = "mongodb://127.0.0.1:27017/"
+
 ua = UserAgent()
 HEADERS = {
         'User-Agent': ua.random,
@@ -132,6 +135,10 @@ def dela_to_de_la(proc_str: str):
         "delantera",
         "delantero",
         "delatar",
+        "delectatio",
+        "delecto",
+        "delego",
+        "deleo",
     ]
     str_to_return = ""
     last_char_index = 0
@@ -150,16 +157,44 @@ def dela_to_de_la(proc_str: str):
                     str_to_return += proc_str[last_char_index:char_index] + " DE LA "
                 last_char_index = char_index + 5
     str_to_return += proc_str[last_char_index:]
+
+    proc_str = str_to_return
+    str_to_return = ""
+    last_char_index = 0
+    for char_index in range(len(proc_str)):
+        str_4char = proc_str[char_index:char_index + 4]
+        if str_4char.lower() == "delo":
+            match_key = False
+            for check_word in dela_words:
+                may_be_word = proc_str[char_index:char_index + len(check_word)]
+                if may_be_word.lower() == check_word.lower():
+                    match_key = True
+            if not match_key:
+                if proc_str[char_index - 1] == " ":
+                    str_to_return += proc_str[last_char_index:char_index] + "DE LO "
+                else:
+                    str_to_return += proc_str[last_char_index:char_index] + " DE LO "
+                last_char_index = char_index + 5
+    str_to_return += proc_str[last_char_index:]
+
     return str_to_return
 
 
 def remove_spec_chars(proc_str: str):
-    chars_to_remove = ["_", "=", "|", u'\u00b0']
+    chars_to_remove = ["_", "=", "|", "\u201c", "\""]
     str_to_return = ""
     for char in proc_str:
         if char not in chars_to_remove:
             str_to_return += char
     return str_to_return
+
+
+def get_table_words_number(table_df):
+    words_counter = 0
+    for index, row in table_df.iterrows():
+        for item in row:
+            words_counter += len(item.split())
+    return words_counter
 
 
 # # ===== Base logic Methods ================================================================= Base logic Methods =====
@@ -175,8 +210,7 @@ class ServerIsDown(Exception):
 def check_date(files_date):
 
     # Creating rec_index from db
-    # mdbh = MongodbHandler(host="mongodb://db:27017/", db_name="raw", collection_name="juzgados")
-    mdbh = MongodbHandler(host="mongodb://127.0.0.1:27017/", db_name="raw", collection_name="juzgados")
+    mdbh = MongodbHandler(host=DB_HOST, db_name="raw", collection_name="juzgados")
     db_rec_indexes = mdbh.collection.find({}, {"_id": 0, "fecha": 1})
     db_rec_indexes = [x["fecha"] for x in db_rec_indexes]
 
@@ -195,6 +229,13 @@ def replace_wrong_recognitions(in_str: str):
         "‘TER.": "1ER.",
         "TER.": "1ER.",
         "‘ER.": "1ER.",
+        "$": "S",
+        "¡": "",
+        "»": "",
+        "«": "",
+        "...": " ...",
+        "]": '',
+        "(.)": '',
     }
     result_str = in_str
     for key in replace_dict.keys():
@@ -325,13 +366,14 @@ async def save_reports(files_urls, files_date):
 
 
 def add_records_to_db(records_list):
-    mdbh = MongodbHandler(host="mongodb://localhost:27017/", db_name="raw", collection_name="juzgados")
+    mdbh = MongodbHandler(host=DB_HOST, db_name="raw", collection_name="juzgados")
     mdbh.collection.insert_many(records_list)
+    print(f"{Tags.LightYellow}Saved to db.{Tags.ResetAll}")
     mdbh.db_client.close()
 
 
 def delete_all_duplicates():
-    mdbh = MongodbHandler(host="mongodb://localhost:27017/", db_name="raw", collection_name="juzgados")
+    mdbh = MongodbHandler(host=DB_HOST, db_name="raw", collection_name="juzgados")
     mdbh.delete_duplicates(["actor", "demandado", "juzgado", "expediente", "materia", "fecha"])
     mdbh.db_client.close()
 
@@ -561,8 +603,9 @@ def parse_field_e(e_field_string):
         "Vs -->",   # F
     ]
     """
+    e_field_string += " "
 
-    # getting brackets indexes
+    # Getting brackets indexes
     open_bracket_indexes = gm.find_all_chars(e_field_string, "(")
     close_bracket_indexes = gm.find_all_chars(e_field_string, ")")
     brackets_indexes = np.append([[0, x] for x in open_bracket_indexes], [[1, x] for x in close_bracket_indexes], axis=0)
@@ -590,8 +633,11 @@ def parse_field_e(e_field_string):
 
         if open_index is not None:
             if close_index is not None:
-                g_field = e_field_string[open_index:close_index + 1]
-                e_field_string = e_field_string[:open_index] + e_field_string[close_index + 1:]
+                if gm.find_string_indexes(e_field_string[close_index:].upper(), "Vs ".upper()) is None:
+                    g_field = e_field_string[open_index:close_index + 1]
+                    e_field_string = e_field_string[:open_index] + e_field_string[close_index + 1:]
+                else:
+                    g_field = ""
             else:
                 g_field = e_field_string[open_index:]
                 e_field_string = e_field_string[:open_index]
@@ -705,9 +751,6 @@ def aux(page_data_df):
     # Parsing header
     rec_header, sp_mm, no_row, page_size_row = parse_header(page_data_df)
 
-    # Parsing of table
-    ...
-
     # Getting top coordinate of "CORRESPONDIENTES" as bottom coordinate of the table
     mask = ["CORRESPONDIENTES".upper() in x for x in page_data_df["text"].values]
     corresp = page_data_df[mask].reset_index(drop=True)
@@ -730,13 +773,25 @@ def aux(page_data_df):
     # Getting data_df for table
     table_ltrbbox = [page_size_row["left"], no_row["top"], page_size_row["right"], bottom]
     table_df = pp.get_data_df_inside_ltrbbox(table_ltrbbox, page_data_df, margin=[0.005, 0.005])
+    words_number = len(table_df)
 
     # Get table
     table_df = pp.table_from_data_df(table_df, table_check_strs=["/20", "S/N"])
     result = table_df.iloc[1:].to_json(orient="values")
     table_json = json.loads(result)
 
-    print(table_df)
+    # print(table_df)
+
+    # Checking if the table columns number is 4
+    if len(table_json) > 0:
+        if len(table_json[0]) != 4:
+            raise Exception("Wrong recognition: columns number is not equal 4")
+
+    # Checking if the table words number is much less than the source data
+    table_words_number = get_table_words_number(table_df)
+    if table_words_number <= 0.5 * words_number:
+        raise Exception(f"Not all data was recognised: recognised words number: {table_words_number}; "
+                        f"source data words number: {words_number}")
 
     # Write data in records
     list_of_records = []
@@ -792,29 +847,34 @@ def parsing_pdf(pdf_path):
     page_count = 0
     custom_dpi = 620
     mode_psm_3 = False
+    threshold_mode = True
+    # mode_psm_3 = True
+    # threshold_mode = False
+
     while not exit_key:
         try:
             doc = convert_from_path(pdf_path, dpi=custom_dpi, thread_count=2)
             for page_number, page_data in enumerate(doc):
                 if page_number < page_count:
                     continue
-                # if page_number + 1 != 2:
+                # if page_number + 1 != 6:
                 #     continue
 
                 # Threshold recognition mode
-                dan.files.update({"threshold": f"{dan.dirs['images']}threshold.png"})
-                file_path = dan.files["threshold"]
-                page_data.save(file_path)
-                img = cv.imread(file_path, cv.IMREAD_GRAYSCALE)
-                ret, thresh1 = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
-                cv.imwrite(file_path, thresh1)
-                page_data = np.array(thresh1)
+                if threshold_mode:
+                    dan.files.update({"threshold": f"{dan.dirs['images']}threshold.png"})
+                    file_path = dan.files["threshold"]
+                    page_data.save(file_path)
+                    img = cv.imread(file_path, cv.IMREAD_GRAYSCALE)
+                    ret, thresh1 = cv.threshold(img, 127, 255, cv.THRESH_BINARY)
+                    cv.imwrite(file_path, thresh1)
+                    page_data = np.array(thresh1)
 
                 # Choosing the psm mode
                 if mode_psm_3:
-                    tesseract_config = "--psm 3"
+                    tesseract_config = "-l spa --psm 3"
                 else:
-                    tesseract_config = "--psm 4"
+                    tesseract_config = "-l spa --psm 4"
 
                 # Getting page data as DataFrame
                 page_data_df = pp.get_page_data_df(page_data, tesseract_config=tesseract_config)
@@ -870,6 +930,7 @@ def parsing_pdf(pdf_path):
                 page_count += 1
                 custom_dpi = 620
                 mode_psm_3 = False
+                threshold_mode = True
             break
         except Exception as _ex:
             # Increase image dpi
@@ -877,26 +938,33 @@ def parsing_pdf(pdf_path):
             print(f"[WARNING] {_ex} | custom_dpi += 20 = {custom_dpi} | Next attempt")
 
             if custom_dpi >= 700 and not mode_psm_3:
-                print("mode --psm 3 is enabled | custom_dpi = 620 | Next attempt")
+                print("mode --psm 3 enabled | custom_dpi = 620 | Next attempt")
                 custom_dpi = 620
                 mode_psm_3 = True
 
-            # Exit if threshold mode recognition failed too
             if custom_dpi >= 700 and mode_psm_3:
+                print("threshold mode disabled | custom_dpi = 120 | Next attempt")
+                custom_dpi = 120
+                threshold_mode = False
+
+            # Exit if threshold mode recognition failed too
+            if custom_dpi >= 240 and not threshold_mode:
                 print(f"{Tags.LightYellow}[ERROR] Recognition failed{Tags.ResetAll}")
+                args["failed_processing"] += 1
+                print("Number of unprocessed files: ", args["failed_processing"])
                 exit_key = True
 
     # Save to json file
-    if not exit_key:
-        json_file_path = pdf_path[:-3] + "json"
-        print("Saving to:", json_file_path, end=" .... ")
-        with open(json_file_path, "w") as json_file:
-            json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder))
-        print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
-    else:
-        print(f"{Tags.LightYellow}[ERROR] Saving error{Tags.ResetAll}")
-        args["failed_processing"] += 1
-        print("Number of unprocessed files: ", args["failed_processing"])
+    # if not exit_key:
+    #     json_file_path = pdf_path[:-3] + "json"
+    #     print("Saving to:", json_file_path, end=" .... ")
+    #     with open(json_file_path, "w") as json_file:
+    #         json_file.write(json.dumps(pdf_recs_list, indent=4, cls=DateTimeEncoder, ensure_ascii=False).encode('utf8').decode())
+    #     print(f"{Tags.LightYellow}Saved{Tags.ResetAll}")
+    # else:
+    #     print(f"{Tags.LightYellow}[ERROR] Saving error{Tags.ResetAll}")
+    #     args["failed_processing"] += 1
+    #     print("Number of unprocessed files: ", args["failed_processing"])
 
     return pdf_recs_list
 
@@ -938,16 +1006,21 @@ def scrape_date(files_date):
                 print("\nProcessing:", pdf_path)
                 records_list = parsing_pdf(pdf_path)
 
-            if len(records_list) > 0:
-
                 # Add records to db
-                add_records_to_db(records_list)
+                if len(records_list) > 0:
+                    add_records_to_db(records_list)
+                else:
+                    print("[WARNING] No data to save")
 
-                # Delete all duplicates from db
-                delete_all_duplicates()
+            # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/app/temp/capital/17-3-2020_seccu.pdf"
+            # pdf_path = "/home/user_name/PycharmProjects/008_TECH_SPEC/app/temp/capital/17-3-2020_civ4.pdf"
+            # records_list = parsing_pdf(pdf_path)
+
+            # Delete all duplicates from db
+            delete_all_duplicates()
 
             # Delete temp folder
-            # dan.remove_dirs()
+            dan.remove_dirs()
             break
 
         except ServerIsDown:
@@ -963,8 +1036,8 @@ def check_and_scrape_dates(dates_list):
 def start_app():
 
     print(args["stdout"])
-    print(dan)
-    # dan.remove_dirs()
+    print(dan, end="\n\n")
+    dan.remove_dirs()
 
     # Getting all dates between star_date and end_date
     dates_list = gm.dates_between(args["start_date"], args["end_date"])
@@ -984,7 +1057,8 @@ def start_app():
 
     except KeyboardInterrupt:
         print("EXIT ... ")
-        # dan.remove_dirs()
+        dan.remove_dirs()
+    finally:
         print("Number of unprocessed files: ", args["failed_processing"])
         sys.exit()
 

@@ -24,7 +24,6 @@ db = db_client["raw"]
 collection = db["juzgados"]
 
 
-
 def parse_field_e(e_field_string):
     """
         Data example: INSTITUTO DEL FONDO NACIONAL DE LA VIVIENDA
@@ -147,10 +146,21 @@ def main():
         " ORDINARIO CIVIL (FAMILIAR",
         "TORRES LOPEZ A BIENES DE: NAHUL LUNA Y SENTENCIA)",
     ]
-    for str_ in str_lst:
-        print(str_)
-        print(parse_field_e(str_))
+    # for str_ in str_lst:
+    #     print(str_)
+    #     print(parse_field_e(str_))
 
+    path = "./test_char.json"
+    json_data = [{"key": "\u00b0"}]
+    with open(path, "w") as f:
+        f.write(json.dumps(json_data, indent=4, ensure_ascii=False).encode('utf8').decode())
+
+"""
+
+
+
+
+"""
 
 def anchor_for_navigate():
     pass
