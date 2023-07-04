@@ -538,6 +538,29 @@ def parse_field_b(b_field):
     return dict_to_return, sp_mm
 
 
+def clean_c_field(field_c_string: str):
+    char_set = {
+        "W": "II",
+        "L": "I",
+        "Y": "V",
+        "1": "I",
+        "!": "I",
+    }
+    tail = field_c_string.split("-")
+
+    if len(tail) > 1:
+        main_part_of_string = tail[0]
+        tail = "-".join([x for x in tail[1:] if x not in ["", None]])
+        out_tail_str = ''
+        for char in tail:
+            if char in [*char_set.keys()]:
+                char = char_set[char]
+            out_tail_str += char
+
+        field_c_string = f"{main_part_of_string}-{out_tail_str}"
+    return field_c_string
+
+
 def parse_field_c(field_c_string):
     """
         Data example: 01215/2010
@@ -546,7 +569,10 @@ def parse_field_c(field_c_string):
     :param field_c_string:
     :return:
     """
-    c_list = [x.strip().split("/") for x in field_c_string.split()]
+    field_c_items = field_c_string.split()
+    field_c_items = [clean_c_field(x) for x in field_c_items]
+
+    c_list = [x.strip().split("/") for x in field_c_items]
     for index in range(len(c_list)):
         if len(c_list[index]) == 1:
             c_list[index] = [c_list[index][0][:-4], c_list[index][0][-4:]]

@@ -13,7 +13,7 @@ from print_tags import Tags
 from app import url_generator, parse_field_c, parse_field_e, parse_field_d, parse_field_b
 from general_methods import random_dd_mm_yyy, replace_chars
 
-tests_list = ["04"]
+tests_list = ["03"]
 
 
 # 01
@@ -165,8 +165,14 @@ def tests_parce_field_c():
             "28CC/2020 268/2018",
             "32CC/2020 446/2018",
             "37CC/2020 89/2019",
-            "42CC/2020 169/2019",
-            "49CC/2020 386/2018",
+            "42CC/2020 169/2019-W",
+            "49CC/2020 386/2018-XL!-",
+            "49CC/2020 386/2018-IY",
+            "49CC/2020 386/2018-1Y-",
+            "49CC/2020 386/2018-X1W",
+            "386/2018-XL!- 0333/2010 00929/2011-II",
+            "386/2018-1Y- 0333/2010 00929/2011-II",
+            " 0333/2010  386/2018-1Y- 00929/2011-II",
         ]
         for c_field in c_fields:
             print(c_field)
